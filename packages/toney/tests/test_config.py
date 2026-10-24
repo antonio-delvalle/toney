@@ -51,6 +51,17 @@ class ConfigTest(unittest.TestCase):
         self.assertEqual(config["config_path"], DEFAULTS["config_path"])
         self.assertIn("env", config["service"])
 
+    def test_the_service_manager_survives_normalisation(self):
+        manager = {"start": ["launchctl", "kickstart", "gui/501/x"]}
+        with open(self.path, "w", encoding="utf-8") as handle:
+            json.dump({"service": {"manager": manager}}, handle)
+        config = load_config(self.path)
+        self.assertEqual(config["service"]["manager"]["start"], manager["start"])
+
+    def test_the_service_manager_is_empty_by_default(self):
+        config = load_config(self.path)
+        self.assertEqual(config["service"]["manager"], {})
+
     def test_user_home_is_expanded(self):
         config = load_config(self.path)
         self.assertFalse(config["control_socket"].startswith("~"))

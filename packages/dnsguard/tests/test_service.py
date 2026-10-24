@@ -1,5 +1,7 @@
+import json
 import os
 import tempfile
+import time
 import unittest
 
 from dnsguard import rules, wire
@@ -83,6 +85,19 @@ class ServiceTests(unittest.TestCase):
         self.assertEqual(status["rules"]["count"], 2)
         self.assertEqual(status["log"]["retention_days"], 5)
 
+    def test_status_reports_the_rule_load_time(self):
+        self.service.started_at = time.time() - 3600
+        status = self.service.status()
+        self.assertNotEqual(status["rules"]["loaded_at"], status["started_at"])
+
+    def test_reload_updates_the_rule_load_time(self):
+        self.service.started_at = time.time() - 3600
+        before = self.service.status()["rules"]["loaded_at"]
+        self.service.reload_rules()
+        after = self.service.status()["rules"]["loaded_at"]
+        self.assertNotEqual(after, self.service.status()["started_at"])
+        self.assertGreaterEqual(after, before)
+
     def test_stats_shape(self):
         self.service.handle_query(self._query("ads.example.net"), "192.0.2.10")
         stats = self.service.stats(300)
@@ -146,6 +161,59 @@ class DispatchTests(unittest.TestCase):
     def test_invalid_params(self):
         with self.assertRaises(ValueError):
             self.service.dispatch("stats", "not-an-object")
+
+
+class PersistenceTests(unittest.TestCase):
+    def setUp(self):
+        self.folder = tempfile.TemporaryDirectory()
+        self.addCleanup(self.folder.cleanup)
+        self.rule_file = os.path.join(self.folder.name, "rules.txt")
+        with open(self.rule_file, "w", encoding="utf-8") as handle:
+            handle.write("||ads.example.net^\n")
+        self.config_path = os.path.join(self.folder.name, "dnsguard.json")
+        config = Config({
+            "listen": "127.0.0.1:0",
+            "upstream": ["192.0.2.53"],
+            "log_dir": os.path.join(self.folder.name, "logs"),
+            "rules": [self.rule_file],
+        }, path=self.config_path)
+        self.service = Service(config)
+        self.addCleanup(self.service.stop)
+        self.service.load_rules()
+
+    def _saved(self):
+        with open(self.config_path, encoding="utf-8") as handle:
+            return json.load(handle)
+
+    def test_rules_set_is_written_to_the_config_file(self):
+        new_file = os.path.join(self.folder.name, "new.txt")
+        with open(new_file, "w", encoding="utf-8") as handle:
+            handle.write("||one.example^\n")
+        self.service.dispatch("rules.set", {"path": new_file})
+        saved = self._saved()
+        self.assertEqual(saved["rules"], [os.path.join(self.folder.name, "logs", "rules.blocklist")])
+
+    def test_a_restart_keeps_the_rules_set_over_the_socket(self):
+        new_file = os.path.join(self.folder.name, "new.txt")
+        with open(new_file, "w", encoding="utf-8") as handle:
+            handle.write("||one.example^\n||two.example^\n")
+        self.service.dispatch("rules.set", {"path": new_file})
+        restarted = Service(Config.load(self.config_path))
+        self.addCleanup(restarted.stop)
+        restarted.load_rules()
+        self.assertEqual(restarted.rules.count, 2)
+
+    def test_config_set_is_written_to_the_config_file(self):
+        self.service.dispatch("config.set", {"retention_days": 9})
+        self.assertEqual(self._saved()["retention_days"], 9)
+
+    def test_upstream_set_is_written_to_the_config_file(self):
+        self.service.dispatch("upstream.set", {"servers": ["192.0.2.55"]})
+        self.assertEqual(self._saved()["upstream"], ["192.0.2.55"])
+
+    def test_the_saved_config_keeps_the_control_socket(self):
+        self.service.dispatch("config.set", {"retention_days": 8})
+        self.assertEqual(self._saved()["control"], self.service.config.get("control"))
 
 
 if __name__ == "__main__":

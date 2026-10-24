@@ -15,7 +15,7 @@ from typing import Any, Dict, Optional
 DEFAULT_CONFIG_PATH = os.path.join("~", ".config", "toney", "toney.json")
 DEFAULT_CONTROL_SOCKET = os.path.join("~", ".local", "state", "toney", "dnsguard.sock")
 DEFAULT_SERVICE_COMMAND = ["python3", "-m", "dnsguard", "serve"]
-DEFAULT_SERVICE_CONFIG_PATH = "/etc/toney/dnsguard.json"
+DEFAULT_SERVICE_CONFIG_PATH = os.path.join("~", ".config", "toney", "dnsguard.json")
 
 DEFAULTS: Dict[str, Any] = {
     "control_socket": DEFAULT_CONTROL_SOCKET,
@@ -68,10 +68,21 @@ def normalise(config: Dict[str, Any]) -> Dict[str, Any]:
         command = [str(part) for part in command]
     cwd = service.get("cwd")
     env = service.get("env")
+    manager = service.get("manager")
+    if isinstance(manager, dict):
+        manager = {
+            str(key): [str(part) for part in value]
+            if isinstance(value, (list, tuple))
+            else [str(value)]
+            for key, value in manager.items()
+        }
+    else:
+        manager = {}
     result["service"] = {
         "command": command,
         "cwd": expand_path(cwd) if cwd else None,
         "env": {str(k): str(v) for k, v in env.items()} if isinstance(env, dict) else {},
+        "manager": manager,
     }
     result["stop_on_exit"] = bool(result.get("stop_on_exit", True))
     return result

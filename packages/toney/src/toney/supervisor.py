@@ -43,6 +43,73 @@ class ServiceSupervisor:
         directory = os.path.dirname(self.socket_path)
         return directory or DEFAULT_STATE_DIR
 
+    def service_command(self) -> List[str]:
+        """The command that starts the service.
+
+        The configuration path is appended unless the configured command
+        already carries a ``--config`` of its own, so the service and the
+        interface always agree on which file holds the settings.
+        """
+        service = self.config.get("service") or {}
+        command = [str(part) for part in (service.get("command") or [])]
+        if not command:
+            return command
+        if "--config" in command:
+            return command
+        config_path = self.config.get("config_path")
+        if not config_path:
+            return command
+        return command + ["--config", os.path.abspath(os.path.expanduser(str(config_path)))]
+
+    def manager_command(self, action: str) -> List[str]:
+        """The command that asks the external manager to act on the service.
+
+        A service that is supervised by the operating system — a launch
+        agent, a systemd unit — must not be started a second time from here.
+        The manager owns the process; this interface only asks it to.
+        """
+        service = self.config.get("service") or {}
+        manager = service.get("manager") or {}
+        command = manager.get(action)
+        if not command:
+            return []
+        if isinstance(command, str):
+            command = [command]
+        return [str(part) for part in command]
+
+    def service_pid(self) -> Optional[int]:
+        """The pid the service reports for itself."""
+        try:
+            client = self._client_factory()
+            with client:
+                data = client.status() or {}
+        except (ToneyError, OSError):
+            return None
+        pid = data.get("pid")
+        return pid if isinstance(pid, int) else None
+
+    def _run_manager(self, command: List[str]) -> bool:
+        if not command:
+            return False
+        try:
+            result = subprocess.run(
+                command,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                timeout=30,
+            )
+        except (OSError, subprocess.SubprocessError):
+            return False
+        return result.returncode == 0
+
+    def _wait_for_service(self, timeout: float = 10.0) -> bool:
+        deadline = time.monotonic() + max(0.0, timeout)
+        while time.monotonic() < deadline:
+            if self.running():
+                return True
+            time.sleep(0.2)
+        return False
+
     @property
     def pid(self) -> Optional[int]:
         """The pid of the process this supervisor started, if any."""
@@ -99,30 +166,36 @@ class ServiceSupervisor:
         return os.path.exists(self.socket_path)
 
     def running(self) -> bool:
-        """True when the service process is alive and answers on the socket."""
-        if not self._alive(self.pid):
-            return False
+        """True when the service answers on the control socket.
+
+        The socket is the authority, not the process table: the service may
+        have been started by something else (a supervisor, a launch agent),
+        in which case there is no pid to find but the service is still up.
+        """
         try:
             client = self._client_factory()
             with client:
                 client.status()
-        except ToneyError:
-            return False
-        except OSError:
+        except (ToneyError, OSError):
             return False
         return True
 
     def start(self) -> int:
         """Start the service and return its pid."""
         if self.running():
-            return int(self.pid or 0)
-        service = self.config.get("service") or {}
-        command: List[str] = list(service.get("command") or [])
+            return int(self.service_pid() or self.pid or 0)
+        manager = self.manager_command("start")
+        if manager:
+            if not self._run_manager(manager):
+                raise ToneyError("could not start the service: the manager refused")
+            self._wait_for_service()
+            return int(self.service_pid() or 0)
+        command = self.service_command()
         if not command:
             raise ToneyError("no service command configured")
-        cwd = service.get("cwd") or None
+        cwd = self.config.get("service", {}).get("cwd") or None
         env = os.environ.copy()
-        for key, value in (service.get("env") or {}).items():
+        for key, value in (self.config.get("service", {}).get("env") or {}).items():
             env[str(key)] = str(value)
         self._close_log()
         try:
@@ -184,6 +257,11 @@ class ServiceSupervisor:
 
     def restart(self, timeout: float = 10.0) -> int:
         """Stop the service if needed and start it again."""
+        manager = self.manager_command("restart")
+        if manager:
+            if self._run_manager(manager):
+                self._wait_for_service(timeout)
+                return int(self.service_pid() or 0)
         self.stop(timeout=timeout)
         return self.start()
 

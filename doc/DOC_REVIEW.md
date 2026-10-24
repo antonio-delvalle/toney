@@ -237,26 +237,39 @@ reads like an inventory of the repository.
 **Proposed fix.** Correct the two paths, and add one line near the top of
 `telemetry-strategy.md` pointing at `artifacts.md` for the script locations.
 
-### 10. Control-protocol drift
+### 10. Control-protocol drift — **fixed**
 
 Not introduced by the archive commit, but now more visible because the archive
 is presented as the reference. All four are in `CONTROL_PROTOCOL.md`:
 
-| Doc says | Code does |
+| Doc said | Code does |
 |---|---|
 | `config.set` "Returns the new effective configuration" | returns `{"changed": [...], "config": {...}}` |
 | `status.rules` has `count`, `loaded_at`, `sources` | also emits `block` and `allow` |
 | `config.get` masks "any secret-bearing fields" with `***` | the config holds no secrets, so nothing is ever masked |
-| — | `status.rules.loaded_at` is the **service start time**, not the rule load time |
+| — | `status.rules.loaded_at` was the **service start time**, not the rule load time |
 
-The last one is a genuine bug, not just documentation: `service.py:168` uses
-`_iso(self.started_at)`, so `loaded_at` is wrong for the whole life of the
-process and never changes after a `rules.reload`. `reload_rules()` already
-computes the value correctly, so the fix is to keep that timestamp on the rule
-set and report it.
+The last one was a genuine bug, not just documentation: `service.py` used
+`_iso(self.started_at)`, so `loaded_at` was wrong for the whole life of the
+process and never changed after a `rules.reload`.
 
-**Proposed fix.** Correct the three doc entries, and fix the `loaded_at`
-source in `service.py`.
+**Status.** All four are corrected. `reload_rules()` already computed the
+value correctly, so the fix was to keep that timestamp on the rule set and
+report it — `RuleSet.loaded_at` is set when the rules are loaded and
+`status()` reports that. The protocol document now describes what the code
+actually does.
+
+**One thing this review did not catch, found while running the thing:**
+`Config.save()` was never called anywhere in the service. A change made over
+the control socket — `rules.set`, `config.set`, `upstream.set` — lived only in
+the running process, and the next start read the configuration file again and
+silently discarded it. `doc/RUNNING.md` claimed the opposite ("changes reach
+the running service immediately and survive a restart"), and
+`CONTROL_PROTOCOL.md` claimed it for `rules.set` alone.
+
+The service now writes the effective configuration back to the file it was
+read from after every change that comes over the socket. This is also what
+makes the `config.set` entry in `CONTROL_PROTOCOL.md` true.
 
 ---
 
@@ -279,7 +292,7 @@ turns critical:
   `BLOCK`, so a KEEP always wins. That is the "don't break the device" rule
   encoded into the data rather than into a comment.
 
-## Open question: the prototype and the product overlap
+## Open question: the prototype and the product overlap — **resolved**
 
 Not a documentation defect, but it belongs in the handoff.
 
@@ -291,7 +304,7 @@ but is not what is filtering traffic right now.
 If Toney is meant to replace the prototype, the remaining work is the
 migration, and no document mentions it:
 
-1. Point the launchd agent at `dnsguard` instead of `dnsfilter.py`.
+1. Point the launch agent at `dnsguard` instead of `dnsfilter.py`.
 2. Move the filter's `listen` to whatever port `dnsguard` will own, and decide
    whether it takes `:53` directly or sits behind dnsmasq.
 3. Confirm the rule set that `dnsguard` loads is the same 70 / 33 profile, and
@@ -302,3 +315,29 @@ migration, and no document mentions it:
 
 That is a small list, but it is the gap between "the tool exists" and "the tool
 is running", and it is currently unwritten.
+
+**Status: done.** The migration was carried out on 2026-10-24.
+
+1. The launch agent now runs `dnsguard serve` instead of `dnsfilter.py`, with
+   the same `caffeinate -i -m` wrapper, so the keep-awake duty is unchanged.
+   The prototype's plist was moved out of `~/Library/LaunchAgents` rather than
+   deleted, so it cannot come back at the next login.
+2. `dnsguard` owns `:53` directly, on `0.0.0.0:53`, with the same upstream
+   (`201.144.94.237`) the prototype used.
+3. The rule set is the shipped profile: 70 block rules and 33 KEEP rules, which
+   is exactly the 70 / 33 set the prototype was serving. `rules.set` writes to
+   the service's own rule directory and the configuration is rewritten to point
+   at it, so the TUI's edits are what the service loads.
+4. The query log kept its format: one JSON object per line with `ts`,
+   `client`, `name`, `type`, `decision` and `rule`. `leak_check.py` reads the
+   prototype's log, not this one, so it still points at the prototype's file.
+5. `caffeinate` stayed.
+
+The service is started by the launch agent, so it outlives the TUI and comes
+back after a reboot. The TUI reaches it over the control socket and drives it
+from there; `toney.json` carries a `manager` section so that `s` and `r` ask
+launchd instead of starting a second copy. See "Letting the operating system
+own the service" in `doc/RUNNING.md`.
+
+The prototype itself is still on disk in the working directory. Nothing in it
+is running any more.

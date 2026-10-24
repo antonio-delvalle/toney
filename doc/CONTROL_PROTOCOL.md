@@ -54,7 +54,8 @@ Full service state. No params.
   "listen": "0.0.0.0:5353",
   "upstream": ["198.51.100.53", "198.51.100.54"],
   "config_path": "/etc/toney/dnsguard.json",
-  "rules": {"count": 67, "loaded_at": "2026-01-02T03:04:05Z", "sources": ["profiles/privacy-tv.blocklist"]},
+  "rules": {"count": 67, "block": 34, "allow": 33, "loaded_at": "2026-01-02T03:04:05Z",
+            "sources": ["profiles/privacy-tv.blocklist"]},
   "counters": {"total": 1285, "allowed": 903, "blocked": 179, "cached": 203, "errors": 0},
   "clients": {"192.0.2.10": {"total": 900, "blocked": 120, "allowed": 780}},
   "log": {"dir": "/var/log/toney/dnsguard", "retention_days": 5,
@@ -64,6 +65,14 @@ Full service state. No params.
 
 `counters.cached` counts answers served from the in-memory cache; it is also
 included in `total`.
+
+`rules.loaded_at` is the moment the rule set was last loaded, not the moment
+the service started: it moves when `rules.reload` or `rules.set` runs, and
+stays put in between.
+
+`config_path` is the file the effective configuration was read from and is
+written back to. It is `null` when the service was started without a
+configuration file.
 
 ### `stats`
 
@@ -101,7 +110,9 @@ Params: `{"path": "/tmp/toney-rules-1234.blocklist"}`.
 
 Replaces the active rule set with the contents of `path` (the TUI writes the
 file first). The file is copied into the service's own rule directory, so it
-survives a restart. Returns the same shape as `rules.reload`.
+survives a restart, and the configuration is rewritten to point at the copy —
+so the next start loads the same rules. Returns the same shape as
+`rules.reload`.
 
 ### `logs.tail`
 
@@ -118,13 +129,22 @@ Returns the most recent matching log records, newest first:
 
 ### `config.get`
 
-Returns the effective configuration with any secret-bearing fields replaced by
-`"***"`.
+Returns the effective configuration. The configuration holds no secrets, so
+nothing is masked.
 
 ### `config.set`
 
 Params: a partial configuration object. Only the listed keys are changed; the
-rest keep their current value. Returns the new effective configuration.
+rest keep their current value.
+
+Returns the keys that changed and the new effective configuration:
+
+```json
+{"changed": ["upstream"], "config": {"listen": "0.0.0.0:5353", "upstream": ["198.51.100.53"], "…": "…"}}
+```
+
+The change is written back to the configuration file the service was started
+with, so it survives a restart.
 
 Known keys: `listen`, `upstream`, `cache_size`, `cache_ttl_s`,
 `log_dir`, `retention_days`, `log_max_bytes`, `rules` (list of paths),

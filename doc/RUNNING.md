@@ -44,14 +44,20 @@ in Toney is wrong; the interpreter is.
 The service still works under a broken-curses Python, so you can get filtering
 running first and sort the TUI out after.
 
+Find an interpreter that can import curses **and** is 3.10 or newer. Check the
+interpreters you actually have rather than only the usual system paths — a
+pyenv install lives in `~/.pyenv/versions/`:
+
 ```bash
-# find an interpreter that can import curses
-for p in /opt/homebrew/bin/python3.1* /usr/local/bin/python3.1* /usr/bin/python3; do
+for p in ~/.pyenv/versions/*/bin/python3 /opt/homebrew/bin/python3.1* \
+         /usr/local/bin/python3.1* /usr/bin/python3; do
   [ -x "$p" ] && echo "$p -> $($p --version 2>&1) curses:$($p -c 'import curses; print("ok")' 2>&1 | tail -1)"
 done
 ```
 
-Pick one that reports `curses:ok` **and** is 3.10 or newer.
+Pick one that reports `curses:ok` **and** is 3.10 or newer, and build the
+virtual environment with that interpreter — not with whatever `python3` happens
+to be first on `PATH`.
 
 ## Install
 
@@ -67,9 +73,44 @@ python3 -m venv ~/.venvs/toney
 
 That gives you two console scripts, `dnsguard` and `toney`.
 
+Check that the environment you installed into is the one you are going to run:
+
+```bash
+~/.venvs/toney/bin/python --version
+~/.venvs/toney/bin/python -c "import curses, dnsguard, toney; print('curses ok')"
+```
+
 Editable installs matter more than usual here: the TUI's supervisor spawns the
 service as a child process, and the child has to be able to `import dnsguard`
 regardless of its working directory.
+
+### Putting the commands on your PATH
+
+The console scripts live in the virtual environment, so on a fresh shell they
+are `~/.venvs/toney/bin/toney` and `~/.venvs/toney/bin/dnsguard`. To be able
+to type `toney` instead, link them into a directory that is already on your
+PATH:
+
+```bash
+mkdir -p ~/.local/bin
+ln -sf ~/.venvs/toney/bin/toney   ~/.local/bin/toney
+ln -sf ~/.venvs/toney/bin/dnsguard ~/.local/bin/dnsguard
+```
+
+`~/.local/bin` is on the PATH of most macOS shells already; check with
+`echo $PATH`. If it is not there, add it to `~/.zshrc`:
+
+```bash
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+Link the two commands rather than adding the virtual environment's `bin`
+directory to the PATH: that directory also holds `python`, `python3` and
+`pip`, and putting it on the PATH would make the virtual environment's
+interpreter the one every command in every shell uses.
+
+The links point at the interpreter inside the virtual environment, so they
+keep working whatever the PATH says — the shebang in the script is absolute.
 
 ## Configure
 
@@ -114,7 +155,8 @@ directory of the process, so absolute paths are safer in the config.
     "cwd": null,
     "env": {}
   },
-  "rules_file": "~/.config/toney/rules.blocklist"
+  "rules_file": "~/.config/toney/rules.blocklist",
+  "stop_on_exit": true
 }
 ```
 
@@ -124,6 +166,11 @@ the interpreter that has `dnsguard` installed.
 
 `control_socket` must match the service's `control` setting, or the TUI will
 report the service as unreachable.
+
+The service is started with `--config <config_path>` appended to `command`,
+unless the command already carries a `--config` of its own. `config_path`
+defaults to `~/.config/toney/dnsguard.json` — the same file the service reads
+on its own — so the two agree on where the settings live by default.
 
 ### Why the config file and not command-line flags
 
@@ -138,6 +185,19 @@ with the **default command** from `toney.json` — silently discarding your flag
 
 Settings in `~/.config/toney/dnsguard.json` survive a restart, because
 `dnsguard serve` with no `--config` reads that file.
+
+Changes the TUI makes over the socket are written back to that file, so they
+survive a restart too: `a`, `k` and `d` in the rules view rewrite the rule set
+and record the new rule file in the configuration, and the configuration editor
+(`c`) records the settings it changes. The file is the single source of truth
+for what the service does on the next start.
+
+### `stop_on_exit`
+
+Whether quitting the TUI stops a service the TUI started. Leave it `true`
+when the TUI is the only thing that runs the service. Set it to `false` when
+the service has to outlive the TUI — a launch agent or any other supervisor
+that keeps it running (see below).
 
 ## Run
 
@@ -163,6 +223,77 @@ Or skip the first terminal entirely: run `toney` and press **`s`** to start the
 service. The supervisor starts the process, waits for the socket to appear and
 reports the service as running.
 
+### Letting the operating system own the service
+
+A service the TUI started is stopped when the TUI quits, and it is gone after a
+reboot. When a device depends on the filter, it has to keep running when
+nobody is looking at the TUI — so hand the process to a system supervisor and
+let the TUI ask that supervisor to act.
+
+On macOS that is a launch agent. `~/Library/LaunchAgents/com.local.toney-dnsguard.plist`:
+
+```xml
+<dict>
+	<key>Label</key>
+	<string>com.local.toney-dnsguard</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/usr/bin/caffeinate</string>
+		<string>-i</string>
+		<string>-m</string>
+		<string>/absolute/path/to/.venvs/toney/bin/dnsguard</string>
+		<string>serve</string>
+		<string>--config</string>
+		<string>/absolute/path/to/.config/toney/dnsguard.json</string>
+	</array>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>KeepAlive</key>
+	<dict>
+		<key>SuccessfulExit</key>
+		<false/>
+	</dict>
+	<key>ThrottleInterval</key>
+	<integer>10</integer>
+</dict>
+```
+
+`KeepAlive` with `SuccessfulExit` false means the agent restarts the service
+when it crashes but leaves it stopped when it was shut down cleanly — a
+deliberate stop stays stopped. `caffeinate` keeps the machine awake; drop it
+if the machine is a server that never sleeps.
+
+Tell the TUI that the service is managed elsewhere, and how to reach the
+manager. In `~/.config/toney/toney.json`:
+
+```json
+{
+  "control_socket": "~/.local/state/toney/dnsguard.sock",
+  "service": {
+    "command": ["/absolute/path/to/.venvs/toney/bin/dnsguard", "serve"],
+    "cwd": null,
+    "env": {},
+    "manager": {
+      "start": ["launchctl", "kickstart", "gui/501/com.local.toney-dnsguard"],
+      "restart": ["launchctl", "kickstart", "-k", "gui/501/com.local.toney-dnsguard"]
+    }
+  },
+  "rules_file": "~/.config/toney/rules.blocklist",
+  "stop_on_exit": false
+}
+```
+
+With `manager` set, `s` and `r` in the TUI run those commands instead of
+starting a second copy of the service. `S` still stops the service over the
+control socket. Without `manager`, the TUI starts and stops the service itself.
+
+Load the agent and check it:
+
+```bash
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.local.toney-dnsguard.plist
+launchctl print gui/$(id -u)/com.local.toney-dnsguard | grep -E 'state|pid'
+```
+
 ## Verify that it filters
 
 Point a query at the listener. A blocked name must come back NXDOMAIN, and a
@@ -179,6 +310,9 @@ dig @127.0.0.1 -p 5354 samsungcloudsolution.com
 # -> status: NOERROR    (KEEP'd, forwarded upstream)
 ```
 
+Use the port the service actually listens on — `5354` above, `53` when the
+service owns the DNS port.
+
 Other checks:
 
 ```bash
@@ -191,6 +325,14 @@ dnsguard logs --limit 20   # recent queries from the service's own log
 `dnsguard config` and `dnsguard rules` read the same files the service does, so
 they are the quickest way to check what the service is *about to* do without
 starting the TUI.
+
+To check that a change made in the TUI really survives a restart, make it,
+restart the service and read the rules again:
+
+```bash
+toney            # add a rule with 'a', then press 'r'
+dnsguard rules | tail -1     # the count has to be the new one
+```
 
 The query log records the decision for every request:
 
@@ -223,6 +365,20 @@ Note also that **5353 is the mDNS port**. It is a poor default for a DNS
 filter: browsers and devices use it for discovery, and something on the machine
 may already hold it.
 
+Whichever way the filter reaches port 53, it has to be the *same* service the
+TUI controls, or the filtering is not under the TUI's control: the TUI would
+be showing one rule set while the device is filtered by another. Check it:
+
+```bash
+lsof -nP -i :53                     # one process holds the port
+toney --check                       # the TUI reaches that service
+dnsguard rules | tail -1            # the rules it actually loaded
+```
+
+If something else holds port 53 — a previous prototype, another filter — stop
+it before starting `dnsguard`. Two processes cannot share the port: the second
+one fails with `Address already in use` and says so in its log.
+
 ### A caution about uptime
 
 If the filtering machine goes to sleep or is powered off, a device that depends
@@ -254,6 +410,10 @@ for that reason.
 In the rules view, `a` / `k` / `d` rewrite the rule set through `rules.set`, so
 changes reach the running service immediately and survive a restart.
 
+`d` deletes the rule that is highlighted in the list you are looking at. With a
+search active that is the matching rule, not the rule at the same position in
+the full list.
+
 ## Where things live
 
 | What | Default path |
@@ -262,8 +422,14 @@ changes reach the running service immediately and survive a restart.
 | TUI config | `~/.config/toney/toney.json` |
 | Control socket | `~/.local/state/toney/dnsguard.sock` |
 | Query log | `~/.local/state/toney/dnsguard/<date>.jsonl` |
+| Active rule file | `~/.local/state/toney/dnsguard/rules.blocklist` |
 | Rule file (TUI editor) | `~/.config/toney/rules.blocklist` |
 | Bundled profiles | `profiles/*.blocklist` in the repository |
+
+The rule file the TUI edits and the rule file the service loads are two
+copies of the same thing: the TUI writes its file, `rules.set` copies it into
+the service's own directory, and the configuration records the copy as the
+active one.
 
 ## Troubleshooting
 
@@ -286,9 +452,28 @@ virtualenv's `dnsguard` script in `toney.json` rather than a bare `python3 -m
 dnsguard`, and check the `cwd` setting.
 
 **The TUI restarted the service and lost my settings**
-Expected. See "Why the config file and not command-line flags" above.
+Expected for settings that were passed as command-line flags: the supervisor
+restarts the service with the command from `toney.json`. See "Why the config
+file and not command-line flags" above. Settings that live in
+`~/.config/toney/dnsguard.json` — including the ones the TUI itself changed —
+do survive the restart.
+
+**The service is running but the TUI says it is stopped**
+The control socket paths disagree. `control_socket` in `toney.json` and
+`control` in `dnsguard.json` have to be the same path.
+
+**The TUI starts a second copy of the service**
+The service is already running but on another socket, or it is managed by a
+launch agent and the TUI has no `manager` section for it. Two copies cannot
+share port 53: the second one fails to bind. Point the TUI at the running
+service, or tell it how to reach the manager.
 
 **A name you expect to be blocked is not**
 Check the decision in the query log — it may have matched a KEEP rule, or a
 different rule than you expected. `toney`'s rules view shows the pattern that
 matched.
+
+**The rules view shows a different rule set than the service is using**
+The TUI's rule file is `~/.config/toney/rules.blocklist` and the service's is
+`~/.local/state/toney/dnsguard/rules.blocklist`. `dnsguard rules` shows what
+the service loaded; `dnsguard config` shows which file that is.

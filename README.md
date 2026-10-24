@@ -38,11 +38,15 @@ Two rules keep this honest:
 ```bash
 git clone https://github.com/antonio-delvalle/toney.git
 cd toney
-python3 -m pip install -e packages/dnsguard
-python3 -m pip install -e packages/toney
+python3 -m venv ~/.venvs/toney
+~/.venvs/toney/bin/python -m pip install -e packages/dnsguard
+~/.venvs/toney/bin/python -m pip install -e packages/toney
 ```
 
-Python 3.10 or newer. Nothing else is needed.
+Python 3.10 or newer, and nothing else — no third-party packages. The virtual
+environment is not required, but it keeps the console scripts and the
+interpreter that can import them together, which matters once the TUI starts
+the service as a child process.
 
 ## Run
 
@@ -55,8 +59,11 @@ dnsguard serve \
   --rules profiles/samsung-tv-telemetry.blocklist
 ```
 
-Then point your devices at `192.0.2.53:5353` as their DNS server — or run it
-on the router itself, which is usually the better place.
+A device can only be told to use port 53 — DHCP hands out an address, and the
+port is implicit. So for real hardware, either run the service on `:53`
+directly, or put dnsmasq in front of it on 53 and let it forward to the
+service's high port. Details and the launch-agent setup are in
+[`doc/RUNNING.md`](doc/RUNNING.md).
 
 Open the interface:
 
@@ -69,7 +76,8 @@ the log, search the rules and change the configuration.
 
 It also edits the rule set from the keyboard: `a` blocks a domain, `k` adds a
 KEEP exception, `d` removes the selected rule, and the change is applied to
-the running service immediately.
+the running service immediately and written to the configuration, so it
+survives a restart.
 
 And it can push the rule set to a router that runs dnsmasq, so the filter
 keeps working when the machine running the service is off. The router is

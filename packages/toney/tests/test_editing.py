@@ -93,6 +93,24 @@ class RulesEditorTests(unittest.TestCase):
         self.view.rules = []
         self.assertFalse(self.view.delete_selected())
 
+    def test_delete_with_a_search_removes_the_matching_rule(self):
+        self.view.search = "cdn"
+        self.view.selected = 0
+        self.view.delete_selected()
+        with open(self.rules_file, encoding="utf-8") as handle:
+            content = handle.read()
+        self.assertNotIn("||cdn.example.net^", content)
+        self.assertIn("||ads.example.net^", content)
+
+    def test_delete_with_a_search_keeps_the_other_rules(self):
+        self.view.search = "ads"
+        self.view.selected = 0
+        self.view.delete_selected()
+        with open(self.rules_file, encoding="utf-8") as handle:
+            content = handle.read()
+        self.assertNotIn("||ads.example.net^", content)
+        self.assertIn("||cdn.example.net^", content)
+
     def test_rule_text_keeps_the_allow_marker(self):
         text = self.view.rule_text(self.view.rules)
         self.assertIn("@@||cdn.example.net^", text)

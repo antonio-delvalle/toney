@@ -50,9 +50,10 @@ class Rule:
 class RuleSet:
     """A loaded set of rules."""
 
-    def __init__(self, rules=None, sources=None):
+    def __init__(self, rules=None, sources=None, loaded_at=None):
         self.rules = list(rules or [])
         self.sources = list(sources or [])
+        self.loaded_at = loaded_at
 
     def __len__(self):
         return len(self.rules)

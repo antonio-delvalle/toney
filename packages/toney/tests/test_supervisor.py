@@ -36,6 +36,19 @@ class SupervisorTest(unittest.TestCase):
         supervisor = self.build()
         self.assertFalse(supervisor.running())
 
+    def test_running_is_true_when_the_service_answers(self):
+        client = mock.MagicMock()
+        client.status.return_value = {"name": "dnsguard"}
+        supervisor = self.build(client_factory=lambda: client)
+        self.assertTrue(supervisor.running())
+
+    def test_start_does_not_spawn_a_second_service(self):
+        client = mock.MagicMock()
+        client.status.return_value = {"name": "dnsguard"}
+        supervisor = self.build(client_factory=lambda: client)
+        supervisor.start()
+        self.assertIsNone(supervisor._child)
+
     def test_start_records_a_live_pid(self):
         supervisor = self.build()
         pid = supervisor.start()
@@ -89,6 +102,80 @@ class SupervisorTest(unittest.TestCase):
         )
         with self.assertRaises(ToneyError):
             supervisor.start()
+
+    def test_service_command_appends_the_config_path(self):
+        supervisor = self.build()
+        command = supervisor.service_command()
+        self.assertEqual(command[-2:], ["--config", "/etc/toney/dnsguard.json"])
+
+    def test_service_command_keeps_an_explicit_config_flag(self):
+        config = dict(self.config)
+        config["service"] = {"command": ["dnsguard", "serve", "--config", "/tmp/other.json"],
+                             "cwd": None, "env": {}}
+        supervisor = ServiceSupervisor(config, state_dir=self.tmp.name)
+        self.assertEqual(supervisor.service_command(),
+                         ["dnsguard", "serve", "--config", "/tmp/other.json"])
+
+    def test_service_command_without_a_config_path(self):
+        config = dict(self.config)
+        config["config_path"] = None
+        supervisor = ServiceSupervisor(config, state_dir=self.tmp.name)
+        self.assertEqual(supervisor.service_command(), list(DUMMY_COMMAND))
+
+    def test_manager_command_is_read_from_the_configuration(self):
+        config = dict(self.config)
+        config["service"] = {
+            "command": list(DUMMY_COMMAND),
+            "cwd": None,
+            "env": {},
+            "manager": {"start": ["launchctl", "kickstart", "gui/501/x"]},
+        }
+        supervisor = ServiceSupervisor(config, state_dir=self.tmp.name)
+        self.assertEqual(supervisor.manager_command("start"),
+                         ["launchctl", "kickstart", "gui/501/x"])
+        self.assertEqual(supervisor.manager_command("stop"), [])
+
+    def test_start_asks_the_manager_instead_of_spawning(self):
+        calls = []
+        config = dict(self.config)
+        config["service"] = {
+            "command": list(DUMMY_COMMAND),
+            "cwd": None,
+            "env": {},
+            "manager": {"start": ["true"]},
+        }
+        supervisor = ServiceSupervisor(config, state_dir=self.tmp.name)
+        supervisor._run_manager = lambda command: calls.append(command) or True
+        supervisor.start()
+        self.assertEqual(calls, [["true"]])
+        self.assertIsNone(supervisor._child)
+
+    def test_start_reports_a_manager_that_refuses(self):
+        config = dict(self.config)
+        config["service"] = {
+            "command": list(DUMMY_COMMAND),
+            "cwd": None,
+            "env": {},
+            "manager": {"start": ["false"]},
+        }
+        supervisor = ServiceSupervisor(config, state_dir=self.tmp.name)
+        with self.assertRaises(ToneyError):
+            supervisor.start()
+
+    def test_restart_asks_the_manager_when_one_is_configured(self):
+        calls = []
+        config = dict(self.config)
+        config["service"] = {
+            "command": list(DUMMY_COMMAND),
+            "cwd": None,
+            "env": {},
+            "manager": {"restart": ["true"]},
+        }
+        supervisor = ServiceSupervisor(config, state_dir=self.tmp.name)
+        supervisor._run_manager = lambda command: calls.append(command) or True
+        supervisor.restart(timeout=1)
+        self.assertEqual(calls, [["true"]])
+        self.assertIsNone(supervisor._child)
 
 
 if __name__ == "__main__":

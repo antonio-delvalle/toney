@@ -27,11 +27,12 @@ class RulesView(View):
         if data is not None:
             self.data = data
             self.rules = list(data.get("rules") or [])
-            self.selected = min(self.selected, max(0, len(self.rules) - 1))
+            self.selected = min(self.selected, max(0, len(self.matching_rules()) - 1))
 
     def matching_rules(self) -> List[dict]:
+        """The rules the current search shows, in the order they are shown."""
         if not self.search:
-            return self.rules
+            return list(self.rules)
         needle = self.search.lower()
         return [
             rule
@@ -40,6 +41,16 @@ class RulesView(View):
             or needle in str(rule.get("source", "")).lower()
             or needle in str(rule.get("action", "")).lower()
         ]
+
+    def selected_rule(self):
+        """The highlighted rule and its position in the full rule list."""
+        shown = self.matching_rules()
+        if not shown:
+            return None, -1
+        index = min(self.selected, len(shown) - 1)
+        rule = shown[index]
+        position = next((p for p, r in enumerate(self.rules) if r is rule), -1)
+        return rule, position
 
     def rules_path(self) -> str:
         configured = self.app.config.get("rules_file")
@@ -95,15 +106,14 @@ class RulesView(View):
         return self.apply_rules(updated)
 
     def delete_selected(self) -> bool:
-        if not self.rules:
+        rule, position = self.selected_rule()
+        if rule is None or position < 0:
             self.app.set_status("there is no rule to delete", "error")
             return False
-        index = min(self.selected, len(self.rules) - 1)
-        rule = self.rules[index]
-        updated = [r for position, r in enumerate(self.rules) if position != index]
+        updated = [r for index, r in enumerate(self.rules) if index != position]
         if not self.apply_rules(updated):
             return False
-        self.selected = max(0, index - 1)
+        self.selected = max(0, self.selected - 1)
         self.app.set_status("deleted {0}".format(rule.get("pattern", "")))
         return True
 
@@ -167,6 +177,6 @@ class RulesView(View):
             self.selected = max(0, self.selected - 1)
             return True
         if key == curses.KEY_DOWN:
-            self.selected = min(max(0, len(self.rules) - 1), self.selected + 1)
+            self.selected = min(max(0, len(self.matching_rules()) - 1), self.selected + 1)
             return True
         return False

@@ -52,6 +52,7 @@ class Service:
         """Load the rule files and return the number of rules."""
         paths = paths if paths is not None else self.config.get("rules")
         loaded = rules_mod.load_rules(paths)
+        loaded.loaded_at = time.time()
         with self.lock:
             self.rules = loaded
         return loaded
@@ -61,7 +62,7 @@ class Service:
         loaded = self.load_rules()
         return {
             "count": loaded.count,
-            "loaded_at": _iso(started),
+            "loaded_at": _iso(loaded.loaded_at or started),
             "duration_ms": int((time.time() - started) * 1000),
             "sources": list(loaded.sources),
         }
@@ -165,7 +166,7 @@ class Service:
                 "count": rules.count,
                 "block": rules.block_count,
                 "allow": rules.allow_count,
-                "loaded_at": _iso(self.started_at),
+                "loaded_at": _iso(rules.loaded_at or self.started_at),
                 "sources": list(rules.sources),
             },
             "counters": counters,
@@ -228,7 +229,24 @@ class Service:
         if "retention_days" in changed or "log_max_bytes" in changed:
             self.log.retention_days = self.config.get("retention_days")
             self.log.max_bytes = self.config.get("log_max_bytes")
+        self.persist_config()
         return changed
+
+    def persist_config(self):
+        """Write the effective configuration back to the file it was read from.
+
+        Without this a change made over the control socket lives only in the
+        running process: the next start reads the file again and the change is
+        gone.  The file stays the single source of truth, so it has to record
+        what the socket just did.
+        """
+        if not self.config.path:
+            return False
+        try:
+            self.config.save()
+        except (OSError, ValueError):
+            return False
+        return True
 
     def sweep_logs(self):
         return self.log.sweep()
@@ -261,7 +279,7 @@ class Service:
                 payload = source.read()
             with open(target, "w", encoding="utf-8") as destination:
                 destination.write(payload)
-            self.config.apply({"rules": [target]})
+            self.apply_config({"rules": [target]})
             return self.reload_rules()
         if cmd == "logs.tail":
             limit = int(params.get("limit", 100))
