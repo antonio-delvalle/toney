@@ -1,0 +1,44 @@
+! ===========================================================================
+! streaming-telemetry.blocklist
+! Device-agnostic: streaming app and smart-TV telemetry that is not tied to
+! one vendor. Measured against live traffic from a smart TV and a set of
+! streaming apps.
+!
+! Format: Adblock-Plus style, one rule per line.
+!   ||domain^      block the domain and every subdomain
+!   @@||domain^    never block (KEEP) - these win over block rules
+!   /^regex$/      block when the regular expression matches
+!
+! DESIGN RULE: telemetry only. Playback, DRM licensing, image and video CDNs
+! stay allowed. Over-blocking here breaks streaming, so start with this file
+! and add to it from your own query log.
+! ===========================================================================
+
+! --- Netflix device telemetry and viewing events ---
+||nrdp.prod.cloud.netflix.com^
+||nrdp.prod.ftl.netflix.com^
+||nrdp51-appboot.netflix.com^
+||nrdp-cell4.prod.ftl.netflix.com^
+||nrdp.logs.netflix.com^
+||logs.netflix.com^
+||ichnaea.netflix.com^
+||customerevents.netflix.com^
+
+! --- Amazon device telemetry ---
+||unagi-na.amazon.com^
+||unagi.amazon.com^
+||minerva.devices.a2z.com^
+||telemetry.insights.video.a2z.com^
+
+! --- Crash and error reporting ---
+||ingest.sentry.io^
+||insights-collector.newrelic.com^
+
+! --- Smart home / device cloud ---
+||client.smartthings.com^
+
+! --- KEEP: playback and licensing must survive filtering ---
+@@||api-global.netflix.com^
+@@||secure.netflix.com^
+@@||uiboot.netflix.com^
+@@||cdn-0.nflximg.com^

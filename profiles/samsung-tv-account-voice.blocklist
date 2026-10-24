@@ -1,0 +1,43 @@
+! ===========================================================================
+! samsung-tv-account-voice.blocklist
+! OPT-IN LAYER - not applied by default.
+!
+! Apply this ON TOP OF samsung-tv-telemetry.blocklist, and only after you have
+! decided to give up the Samsung account and/or voice control.
+!
+! What this layer costs you:
+!   * Samsung account sign-in breaks entirely (you will not be able to sign
+!     back in without removing this layer first)
+!   * Bixby / voice control stops working
+!   * Tizen Store purchase and login stop working
+!
+! What it gains you:
+!   * no account-linked identity
+!   * no viewing-history profile and no personalised recommendations
+!   * no voice transcripts stored against an identity
+!
+! Why voice telemetry has no hostname of its own:
+!   voice commands are transmitted to a third-party speech-recognition
+!   provider together with device identifiers. The voice path shares
+!   infrastructure with the account and wake-word services, so it cannot be
+!   blocked at the DNS layer without breaking voice.
+!   The reliable way to stop audio leaving the house is the device switch:
+!     Settings -> General -> Voice Recognition -> Voice Assistant: Off
+!
+! Confirm every entry against your own query log before relying on it.
+! ===========================================================================
+
+! --- Account / SSO backend (breaks sign-in) ---
+||auth.samsungosp.com^
+||sc-auth.samsungosp.com^
+||eu-auth2.samsungosp.com^
+||account.samsung.com^
+||samsungosp.com^
+
+! --- Bixby voice assistant service (breaks voice) ---
+||provisioning-use2.mgmt.aibixby.com^
+||mgmt.aibixby.com^
+||bixby.samsung.com^
+
+! --- SmartThings account cloud (breaks pairing and account) ---
+||samsungiotcloud.com^

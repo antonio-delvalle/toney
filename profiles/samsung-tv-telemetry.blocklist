@@ -1,0 +1,128 @@
+! ===========================================================================
+! samsung-tv-telemetry.blocklist
+! Telemetry, ACR (viewing-history fingerprinting), advertising and device-log
+! endpoints for Samsung Tizen smart TVs.
+!
+! Format: Adblock-Plus style, one rule per line.
+!   ||domain^      block the domain and every subdomain
+!   @@||domain^    never block (KEEP) - these win over block rules
+!   /^regex$/      block when the regular expression matches
+!
+! DESIGN RULE: this profile blocks TELEMETRY ONLY.
+! Every host that serves firmware, time sync, DRM/licensing, the app store,
+! account sign-in, TV Plus streaming or playback is deliberately ALLOWED and
+! listed as a KEEP rule at the bottom. When in doubt, it stays allowed.
+!
+! The KEEP list matters as much as the block list: an over-broad list breaks
+! the device, and a device that does not work is not a private device.
+!
+! Measured against Tizen 6.x and 9.x firmware. Review it against your own
+! query log before trusting it.
+! ===========================================================================
+
+! --- Viewing history, ACR fingerprinting, advertising, device logs ---
+||samsungacr.com^
+||acr0.samsungcloudsolution.com^
+/^acr[0-9]+\.samsungcloudsolution\.com$/
+||acr-au-prd.samsungcloud.tv^
+||acr-br-prd.samsungcloud.tv^
+||acr-ca-prd.samsungcloud.tv^
+||acr-eu-prd.samsungcloud.tv^
+||acr-in-prd.samsungcloud.tv^
+||acr-kr-prd.samsungcloud.tv^
+||acr-mx-prd.samsungcloud.tv^
+||acr-nz-prd.samsungcloud.tv^
+||acr-us-prd.samsungcloud.tv^
+/^acr-[a-z0-9]{2,4}-prd\.samsungcloud\.tv$/
+||infolink.pavv.co.kr^
+||pavv.co.kr^
+||musicid.samsungcloudsolution.com^
+||vdterms.samsungcloudsolution.com^
+||samsungads.com^
+||samsungadhub.com^
+||samsungtvads.com^
+||samsungnyc.com^
+||adgrx.com^
+||tvx.adgrx.com^
+||sspapi-prd.samsungrs.com^
+||adconsent.samsungrs.com^
+||samsungads.adsmeasurement.com^
+||img-resize-cdn-prod.samsungnyc.com^
+||sca.samsung.com^
+||adgear.com^
+||telemetry.samsung.com^
+||devicelog.samsungcloudsolution.net^
+||prderrordumphsm.samsungcloudsolution.com^
+||prderrordumpssm.samsungcloudsolution.net^
+||sas.samsungcloudsolution.com^
+||gamespromotion.samsungcloudsolution.com^
+||svwindow.samsungcloudsolution.com^
+||ureca.samsungapps.com^
+||dc.di.atlas.samsung.com^
+||vd.ct.svcsp.net^
+||tvpnlogopus.samsungcloud.tv^
+||tvpnlogopeu.samsungcloud.tv^
+||tvpnlogosus.samsungcloud.tv^
+||tvpnlogodus.samsungcloud.tv^
+||tvpndynamiclogopus.samsungcloud.tv^
+||tvpndynamiclogopeu.samsungcloud.tv^
+||tvpndynamiclogosus.samsungcloud.tv^
+||qoe.samsungcloud.tv^
+||test.samsungrm.net^
+||connecttv.pelmorex.com^
+||premium-videos.telly.com^
+||log.internetat.tv^
+||game.internetat.tv^
+||pipeaota.com^
+/^[a-z]pu\.samsungelectronics\.com$/
+||unagi-na.amazon.com^
+||unagi.amazon.com^
+||minerva.devices.a2z.com^
+||telemetry.insights.video.a2z.com^
+||nrdp.logs.netflix.com^
+||logs.netflix.com^
+||ichnaea.netflix.com^
+||customerevents.netflix.com^
+||insights-collector.newrelic.com^
+||nrdp.prod.cloud.netflix.com^
+||nrdp51-appboot.netflix.com^
+||nrdp-cell4.prod.ftl.netflix.com^
+||client.smartthings.com^
+||nrdp.prod.ftl.netflix.com^
+||ingest.sentry.io^
+||prd-use2-ucs.aibixby.com^
+
+! --- KEEP: functionality that must survive filtering ---
+@@||time.samsungcloudsolution.com^
+@@||time.samsungcloudsolution.net^
+@@||cdn.samsungcloudsolution.com^
+@@||otnprd8.samsungcloudsolution.net^
+@@||otnprd9.samsungcloudsolution.net^
+@@||otnprd10.samsungcloudsolution.net^
+@@||otnprd11.samsungcloudsolution.net^
+@@||otn.samsungcloudcdn.com^
+@@||samsungotn.net^
+@@||lcprd1.samsungcloudsolution.net^
+@@||lcprd2.samsungcloudsolution.net^
+@@||configprd.samsungcloudsolution.net^
+@@||osb-ussvc.samsungqbe.com^
+@@||osb-ussvc-v2.samsungqbe.com^
+@@||osb-apps.samsungqbe.com^
+@@||osb-apps-v2.samsungqbe.com^
+@@||gpm.samsungqbe.com^
+@@||tvpnlinupepgpeu.samsungcloud.tv^
+@@||tvpnlinupepgpus.samsungcloud.tv^
+@@||samsungcloud.com^
+@@||account.samsung.com^
+@@||auth.samsungosp.com^
+@@||sc-auth.samsungosp.com^
+@@||eu-auth2.samsungosp.com^
+@@||api.samsungapps.com^
+@@||hub.samsungapps.com^
+@@||iap.samsungapps.com^
+@@||img.samsungapps.com^
+@@||www.samsungrm.net^
+@@||samsungup.com^
+@@||fw.samsung.com^
+@@||provisioning-use2.mgmt.aibixby.com^
+@@||ocfconnect-shard-eu02-euwest1.samsungiotcloud.com^
