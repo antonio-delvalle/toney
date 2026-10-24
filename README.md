@@ -96,7 +96,7 @@ regular expression, so it is a second layer, never a replacement.
         +--------------------+
 ```
 
-The protocol is documented in [`docs/CONTROL_PROTOCOL.md`](docs/CONTROL_PROTOCOL.md).
+The protocol is documented in [`doc/CONTROL_PROTOCOL.md`](doc/CONTROL_PROTOCOL.md).
 
 ## Logs expire
 
@@ -109,8 +109,9 @@ window is configurable.
 
 | Document | What it covers |
 |---|---|
-| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | how the pieces fit, and why they are split this way |
-| [`docs/CONTROL_PROTOCOL.md`](docs/CONTROL_PROTOCOL.md) | the socket protocol between the two applications |
+| [`doc/ARCHITECTURE.md`](doc/ARCHITECTURE.md) | how the pieces fit, and why they are split this way |
+| [`doc/CONTROL_PROTOCOL.md`](doc/CONTROL_PROTOCOL.md) | the socket protocol between the two applications |
+| [`doc/investigation/`](doc/investigation/) | the measurements and reverse engineering Toney was built on |
 | [`profiles/README.md`](profiles/README.md) | rule syntax and the bundled profiles |
 
 ## Licence

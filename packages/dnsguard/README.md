@@ -70,7 +70,7 @@ dnsguard version
 
 The service listens on a Unix socket and speaks newline-delimited JSON, one
 object per line. That is how `toney` manages it. The commands are documented
-in [`../../docs/CONTROL_PROTOCOL.md`](../../docs/CONTROL_PROTOCOL.md).
+in [`../../doc/CONTROL_PROTOCOL.md`](../../doc/CONTROL_PROTOCOL.md).
 
 ```bash
 python3 - <<'EOF'

@@ -2,7 +2,7 @@
 
 Toney is a terminal UI that manages the **dnsguard** DNS filtering service.
 The service is a separate program; Toney only ever talks to it through the
-Unix domain socket control protocol described in `docs/CONTROL_PROTOCOL.md`.
+Unix domain socket control protocol described in `doc/CONTROL_PROTOCOL.md`.
 Toney needs Python 3.10 or newer and the standard library only.
 
 ## Run
