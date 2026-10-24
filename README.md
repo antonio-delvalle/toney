@@ -111,6 +111,8 @@ window is configurable.
 |---|---|
 | [`doc/ARCHITECTURE.md`](doc/ARCHITECTURE.md) | how the pieces fit, and why they are split this way |
 | [`doc/CONTROL_PROTOCOL.md`](doc/CONTROL_PROTOCOL.md) | the socket protocol between the two applications |
+| [`doc/RUNNING.md`](doc/RUNNING.md) | installing, configuring, running and verifying the two applications |
+| [`doc/DOC_REVIEW.md`](doc/DOC_REVIEW.md) | a review of this documentation, with the findings still open |
 | [`doc/investigation/`](doc/investigation/) | the measurements and reverse engineering Toney was built on |
 | [`profiles/README.md`](profiles/README.md) | rule syntax and the bundled profiles |
 

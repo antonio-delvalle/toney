@@ -4,6 +4,8 @@
 |---|---|
 | [ARCHITECTURE.md](ARCHITECTURE.md) | how the two applications fit together, and why they are split this way |
 | [CONTROL_PROTOCOL.md](CONTROL_PROTOCOL.md) | the socket protocol between `dnsguard` and `toney` |
+| [RUNNING.md](RUNNING.md) | installing, configuring and running the two applications, and checking that the filtering works |
+| [DOC_REVIEW.md](DOC_REVIEW.md) | a review of this documentation and the protocol, with the findings still open |
 | [investigation/](investigation/) | the measurements and reverse engineering Toney was built on |
 
 ## The investigation archive
