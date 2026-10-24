@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "toney"
+version = "0.1.0"
+description = "Terminal UI that manages the dnsguard DNS filtering service"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+keywords = ["dns", "terminal", "tui", "curses", "filtering"]
+classifiers = [
+    "Environment :: Console :: Curses",
+    "Intended Audience :: System Administrators",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Topic :: System :: Networking",
+]
+dependencies = []
+
+[project.scripts]
+toney = "toney.cli:main"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]

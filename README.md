@@ -67,6 +67,15 @@ toney
 The TUI shows what the service is doing, lets you start and stop it, browse
 the log, search the rules and change the configuration.
 
+It also edits the rule set from the keyboard: `a` blocks a domain, `k` adds a
+KEEP exception, `d` removes the selected rule, and the change is applied to
+the running service immediately.
+
+And it can push the rule set to a router that runs dnsmasq, so the filter
+keeps working when the machine running the service is off. The router is
+always the coarser of the two: dnsmasq cannot express a KEEP exception or a
+regular expression, so it is a second layer, never a replacement.
+
 ## How the two fit together
 
 ```
