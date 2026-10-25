@@ -9,137 +9,81 @@ from __future__ import annotations
 
 from typing import Any, Dict, List
 
-from toney.term import curses
-from toney.widgets import safe_addstr
+from textual.app import ComposeResult
+from textual.containers import Horizontal, Vertical
+from textual.screen import ModalScreen
+from textual.widgets import Button, Input, Static
+
+FIELDS = (
+    ("listen", "address to bind the DNS socket to"),
+    ("upstream", "comma separated list of upstream resolvers"),
+    ("log_dir", "directory the query log is written to"),
+    ("retention_days", "number of days the query log is kept"),
+)
 
 
-class ConfigEditor:
+class ConfigEditorScreen(ModalScreen):
     """A small modal form for the runtime configuration of the service."""
 
-    def __init__(self, app: Any, values: Dict[str, Any]) -> None:
-        self.app = app
+    BINDINGS = [("escape", "cancel", "Cancel")]
+
+    def __init__(self, values: Dict[str, Any]) -> None:
+        super().__init__()
         self.values = values or {}
-        self.items: List[List[str]] = [
-            ["listen", str(self.values.get("listen", "")), "address to bind the DNS socket to"],
-            [
-                "upstream",
-                ", ".join(str(part) for part in (self.values.get("upstream") or [])),
-                "comma separated list of upstream resolvers",
-            ],
-            ["log_dir", str(self.values.get("log_dir", "")), "directory the query log is written to"],
-            [
-                "retention_days",
-                str(self.values.get("retention_days", "")),
-                "number of days the query log is kept",
-            ],
-        ]
-        self.index = 0
-        self.cursor = len(self.items[0][1])
-        self.closed = False
 
-    def current(self) -> List[str]:
-        return self.items[self.index]
+    def compose(self) -> ComposeResult:
+        with Vertical(id="config-box"):
+            yield Static("Service configuration", classes="prompt-label")
+            with Vertical(id="config-fields"):
+                for name, hint in FIELDS:
+                    yield Static(hint, classes="field-hint")
+                    yield Input(value=self._value_for(name), id="field-{0}".format(name))
+            with Horizontal(id="config-actions"):
+                yield Button("Apply", id="apply", variant="primary")
+                yield Button("Cancel", id="cancel")
 
-    def render(self, window) -> None:
-        maxy, maxx = window.getmaxyx()
-        width = min(maxx - 4, 74)
-        height = len(self.items) + 6
-        top = max(0, (maxy - height) // 2)
-        left = max(0, (maxx - width) // 2)
-        safe_addstr(window, top, left, "+" + "-" * max(0, width - 2) + "+", curses.A_BOLD)
-        safe_addstr(window, top + height - 1, left, "+" + "-" * max(0, width - 2) + "+", curses.A_BOLD)
-        for offset in range(1, height - 1):
-            safe_addstr(window, top + offset, left, "|")
-            safe_addstr(window, top + offset, left + width - 1, "|")
-        safe_addstr(window, top + 1, left + 2, "Service configuration", curses.A_BOLD)
-        row = top + 3
-        for index, (name, value, hint) in enumerate(self.items):
-            attr = curses.A_BOLD if index == self.index else curses.A_NORMAL
-            safe_addstr(window, row, left + 2, name.ljust(16), attr)
-            safe_addstr(window, row, left + 18, value.ljust(max(0, width - 22)))
-            if index == self.index:
-                try:
-                    window.move(row, min(left + 18 + self.cursor, maxx - 1))
-                except Exception:
-                    pass
-            row += 1
-            safe_addstr(window, row, left + 18, hint, curses.A_DIM)
-            row += 1
-        safe_addstr(
-            window,
-            top + height - 2,
-            left + 2,
-            "Enter next field  F2 apply  Esc cancel",
-            curses.A_DIM,
-        )
+    def on_mount(self) -> None:
+        self.query_one("#field-listen", Input).focus()
 
-    def move(self, delta: int) -> None:
-        self.index = (self.index + delta) % len(self.items)
-        self.cursor = len(self.items[self.index][1])
+    def _value_for(self, name: str) -> str:
+        value = self.values.get(name)
+        if name == "upstream":
+            return ", ".join(str(part) for part in (value or []))
+        return "" if value is None else str(value)
+
+    def action_cancel(self) -> None:
+        self.dismiss(False)
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        event.stop()
+        if event.button.id == "apply":
+            self.dismiss(self.apply())
+        else:
+            self.dismiss(False)
 
     def apply(self) -> bool:
         params: Dict[str, Any] = {}
-        for name, value, _hint in self.items:
-            text = value.strip()
-            if not text:
+        for name, _hint in FIELDS:
+            value = self.query_one("#field-{0}".format(name), Input).value.strip()
+            if not value:
                 continue
             if name == "upstream":
-                servers = [part.strip() for part in text.split(",") if part.strip()]
-                params["upstream"] = servers
+                params["upstream"] = [part.strip() for part in value.split(",") if part.strip()]
             elif name == "retention_days":
                 try:
-                    params["retention_days"] = int(text)
+                    params["retention_days"] = int(value)
                 except ValueError:
-                    self.app.set_status("retention days must be a whole number", "error")
+                    self.app.controller.set_status(
+                        "retention days must be a whole number", "error"
+                    )
                     return False
             else:
-                params[name] = text
+                params[name] = value
         if not params:
-            self.app.set_status("nothing to apply", "error")
+            self.app.controller.set_status("nothing to apply", "error")
             return False
-        result = self.app.request("config.set", params)
+        result = self.app.controller.request("config.set", params)
         if result is None:
             return False
-        self.app.set_status("configuration applied")
-        self.closed = True
+        self.app.controller.set_status("configuration applied")
         return True
-
-    def handle_key(self, key: int) -> bool:
-        if key == 27:
-            self.app.set_status("configuration edit cancelled")
-            self.closed = True
-            return True
-        if key in (curses.KEY_F2, 19):
-            self.apply()
-            return self.closed
-        if key in (curses.KEY_ENTER, 10, 13):
-            if self.index == len(self.items) - 1:
-                self.apply()
-            else:
-                self.move(1)
-            return self.closed
-        if key in (curses.KEY_DOWN, 9):
-            self.move(1)
-            return False
-        if key == curses.KEY_UP:
-            self.move(-1)
-            return False
-        if key == curses.KEY_LEFT:
-            self.cursor = max(0, self.cursor - 1)
-            return False
-        if key == curses.KEY_RIGHT:
-            self.cursor = min(len(self.current()[1]), self.cursor + 1)
-            return False
-        if key in (curses.KEY_BACKSPACE, 127, 8):
-            item = self.current()
-            if self.cursor > 0:
-                item[1] = item[1][: self.cursor - 1] + item[1][self.cursor :]
-                self.cursor -= 1
-            return False
-        if key < 32:
-            return False
-        if 32 <= key < 127:
-            item = self.current()
-            item[1] = item[1][: self.cursor] + chr(key) + item[1][self.cursor :]
-            self.cursor += 1
-        return False

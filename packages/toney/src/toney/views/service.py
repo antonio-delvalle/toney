@@ -2,88 +2,59 @@
 
 from __future__ import annotations
 
-from toney.term import curses
-from typing import List
+from textual.app import ComposeResult
+from textual.containers import Horizontal
+from textual.widgets import Button, Static
 
-from toney.views.base import View
-from toney.widgets import Rect, format_duration, safe_addstr
-
-ACTIONS = ("Start", "Stop", "Restart", "Reload rules")
+from toney.formatting import format_duration
+from toney.views.base import ToneyView, pairs_block
 
 
-class ServiceView(View):
+class ServiceView(ToneyView):
     """Shows the state of the service and the lifecycle actions."""
 
     name = "service"
     title = "Service"
 
-    def __init__(self, app) -> None:
-        super().__init__(app)
-        self.selected = 0
+    def compose(self) -> ComposeResult:
+        with Horizontal(id="actions"):
+            yield Button("Start", id="start", flat=True)
+            yield Button("Stop", id="stop", flat=True)
+            yield Button("Restart", id="restart", flat=True)
+            yield Button("Reload rules", id="reload", flat=True)
+        yield Static("", id="service-detail")
 
-    def refresh(self) -> None:
-        data = self.app.request("status")
-        if data is not None:
+    def load_data(self) -> None:
+        if not self.is_mounted:
+            return
+        data = self.controller.request("status")
+        if data is None:
+            data = {}
+        else:
             self.data = data
-
-    def render(self, window, rect: Rect) -> None:
-        top, left, height, width = rect
-        row = top
-        data = self.data or {}
-        state = self.app.service_state()
-        safe_addstr(window, row, left, "State", curses.A_BOLD)
-        row += 1
-        safe_addstr(window, row, left, "  state     : {0}".format(state))
-        row += 1
-        safe_addstr(window, row, left, "  pid       : {0}".format(data.get("pid", "-")))
-        row += 1
-        safe_addstr(
-            window,
-            row,
-            left,
-            "  uptime    : {0}".format(format_duration(data.get("uptime_s"))),
-        )
-        row += 1
-        safe_addstr(window, row, left, "  socket    : {0}".format(self.app.socket_path))
-        row += 1
-        safe_addstr(window, row, left, "  command   : {0}".format(self.app.service_command()))
-        row += 2
-
-        safe_addstr(window, row, left, "Actions", curses.A_BOLD)
-        row += 1
-        for index, action in enumerate(ACTIONS):
-            attr = curses.A_REVERSE if index == self.selected else curses.A_NORMAL
-            safe_addstr(window, row, left, "  [{0}] {1}".format(index + 1, action), attr)
-            row += 1
-        row += 1
-        safe_addstr(
-            window,
-            row,
-            left,
-            "Use the left and right arrows to pick an action and Enter to run it.",
-            curses.A_DIM,
-        )
-        row += 1
-        safe_addstr(
-            window,
-            row,
-            left,
-            "Global shortcuts: s start, S stop, r restart, R reload rules.",
-            curses.A_DIM,
+        self.query_one("#service-detail", Static).update(
+            pairs_block(
+                [
+                    ("state", self.controller.service_state()),
+                    ("pid", data.get("pid", "-")),
+                    ("uptime", format_duration(data.get("uptime_s"))),
+                    ("socket", self.controller.socket_path),
+                    ("command", self.controller.service_command() or "-"),
+                    ("version", data.get("version", "-")),
+                ],
+                self.colors,
+            )
         )
 
-    def handle_key(self, key: int) -> bool:
-        if key == curses.KEY_LEFT:
-            self.selected = (self.selected - 1) % len(ACTIONS)
-            return True
-        if key == curses.KEY_RIGHT:
-            self.selected = (self.selected + 1) % len(ACTIONS)
-            return True
-        if key in (curses.KEY_ENTER, 10, 13):
-            self.app.run_action(self.selected)
-            return True
-        if ord("1") <= key <= ord("4"):
-            self.selected = key - ord("1")
-            self.app.run_action(self.selected)
-            return True
-        return False
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "start":
+            self.controller.start_service()
+        elif event.button.id == "stop":
+            self.controller.stop_service()
+        elif event.button.id == "restart":
+            self.controller.restart_service()
+        elif event.button.id == "reload":
+            self.controller.reload_rules()
+        else:
+            return
+        self.load_data()

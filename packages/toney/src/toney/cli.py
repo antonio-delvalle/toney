@@ -70,7 +70,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     if args.check:
         return check_service(config["control_socket"])
     try:
-        from toney.ui import run_app
+        from toney.app import run_app
 
         return run_app(config)
     except KeyboardInterrupt:

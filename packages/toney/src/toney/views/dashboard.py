@@ -2,149 +2,155 @@
 
 from __future__ import annotations
 
-from toney.term import curses
 from typing import Any, Dict, List
 
-from toney.views.base import View
-from toney.widgets import Rect, format_bytes, format_duration, render_table, safe_addstr
+from textual.app import ComposeResult
+from textual.containers import Grid
+from textual.widgets import DataTable, Static
+
+from toney.formatting import format_bytes, format_duration, format_time
+from toney.views.base import LOG_COLUMNS, ToneyView, device_cell, log_row, summary_card
+
+RECENT_LOGS = 20
 
 
-class DashboardView(View):
-    """Shows the service state, counters, clients, upstreams and logs."""
+class DashboardView(ToneyView):
+    """Shows the service state, counters, clients and the most recent logs."""
 
     name = "dashboard"
     title = "Dashboard"
 
-    def refresh(self) -> None:
-        data = self.app.request("status")
-        if data is not None:
-            self.data = data
+    def compose(self) -> ComposeResult:
+        with Grid(id="cards"):
+            yield Static(id="card-service", classes="card")
+            yield Static(id="card-counters", classes="card")
+            yield Static(id="card-rules", classes="card")
+            yield Static(id="card-logs", classes="card")
+        yield Static("Clients", classes="section-title")
+        yield DataTable(id="clients")
+        yield Static("Recent logs", classes="section-title")
+        yield DataTable(id="recent-logs")
 
-    def render(self, window, rect: Rect) -> None:
-        top, left, height, width = rect
-        data = self.data
-        if not data:
-            safe_addstr(window, top, left, "No status available yet.")
-            safe_addstr(window, top + 1, left, "Press 'g' to refresh, 's' to start the service.")
+    def on_mount(self) -> None:
+        clients = self.query_one("#clients", DataTable)
+        clients.add_columns("device", "client", "total", "allowed", "blocked")
+        clients.cursor_type = "row"
+        logs = self.query_one("#recent-logs", DataTable)
+        logs.add_columns(*LOG_COLUMNS)
+        logs.cursor_type = "row"
+
+    def load_data(self) -> None:
+        if not self.is_mounted:
             return
-        row = top
+        data = self.controller.request("status")
+        if data is None:
+            self._set_card("card-service", "Service", [("state", self.controller.service_state())])
+            self._set_card("card-counters", "Counters", [])
+            self._set_card("card-rules", "Rules", [])
+            self._set_card("card-logs", "Logs", [])
+            self._fill_clients({})
+            self._fill_logs([])
+            return
+        self.data = data
         counters = data.get("counters") or {}
         rules = data.get("rules") or {}
         log = data.get("log") or {}
-        clients = data.get("clients") or {}
 
-        safe_addstr(window, row, left, "Service", curses.A_BOLD)
-        row += 1
-        safe_addstr(window, row, left, "  state     : {0}".format(self.app.service_state()))
-        row += 1
-        safe_addstr(window, row, left, "  name      : {0}".format(data.get("name", "-")))
-        row += 1
-        safe_addstr(window, row, left, "  version   : {0}".format(data.get("version", "-")))
-        row += 1
-        safe_addstr(window, row, left, "  pid       : {0}".format(data.get("pid", "-")))
-        row += 1
-        safe_addstr(
-            window,
-            row,
-            left,
-            "  uptime    : {0}".format(format_duration(data.get("uptime_s"))),
+        self._set_card(
+            "card-service",
+            "Service",
+            [
+                ("state", self.controller.service_state()),
+                ("name", data.get("name", "-")),
+                ("version", data.get("version", "-")),
+                ("pid", data.get("pid", "-")),
+                ("uptime", format_duration(data.get("uptime_s"))),
+                ("listen", data.get("listen", "-")),
+            ],
         )
-        row += 1
-        safe_addstr(window, row, left, "  listen    : {0}".format(data.get("listen", "-")))
-        row += 1
-        safe_addstr(window, row, left, "  started   : {0}".format(data.get("started_at", "-")))
-        row += 1
-        safe_addstr(
-            window,
-            row,
-            left,
-            "  config    : {0}".format(data.get("config_path", "-")),
+        self._set_card(
+            "card-counters",
+            "Counters",
+            [
+                ("total", counters.get("total", 0)),
+                ("allowed", counters.get("allowed", 0)),
+                ("blocked", counters.get("blocked", 0)),
+                ("cached", counters.get("cached", 0)),
+                ("errors", counters.get("errors", 0)),
+            ],
         )
-        row += 2
-
-        safe_addstr(window, row, left, "Counters", curses.A_BOLD)
-        row += 1
-        total = counters.get("total", 0)
-        allowed = counters.get("allowed", 0)
-        blocked = counters.get("blocked", 0)
-        cached = counters.get("cached", 0)
-        errors = counters.get("errors", 0)
-        safe_addstr(
-            window,
-            row,
-            left,
-            "  total {0}   allowed {1}   blocked {2}   cached {3}   errors {4}".format(
-                total, allowed, blocked, cached, errors
-            ),
+        sources: List[str] = list(rules.get("sources") or [])
+        self._set_card(
+            "card-rules",
+            "Rules",
+            [
+                ("count", rules.get("count", 0)),
+                ("block", rules.get("block", 0)),
+                ("allow", rules.get("allow", 0)),
+                ("files", len(sources)),
+                ("loaded", format_time(rules.get("loaded_at"))),
+            ],
         )
-        row += 2
-
-        safe_addstr(window, row, left, "Upstream servers", curses.A_BOLD)
-        row += 1
-        upstreams = data.get("upstream") or []
-        if upstreams:
-            for server in upstreams:
-                safe_addstr(window, row, left, "  {0}".format(server))
-                row += 1
-        else:
-            safe_addstr(window, row, left, "  (none)")
-            row += 1
-        row += 1
-
-        safe_addstr(window, row, left, "Rules", curses.A_BOLD)
-        row += 1
-        safe_addstr(window, row, left, "  count     : {0}".format(rules.get("count", 0)))
-        row += 1
-        safe_addstr(window, row, left, "  loaded at : {0}".format(rules.get("loaded_at", "-")))
-        row += 1
-        sources = rules.get("sources") or []
-        if sources:
-            for source in sources[:5]:
-                safe_addstr(window, row, left, "  source    : {0}".format(source))
-                row += 1
-        row += 1
-
-        safe_addstr(window, row, left, "Logs", curses.A_BOLD)
-        row += 1
-        safe_addstr(window, row, left, "  directory : {0}".format(log.get("dir", "-")))
-        row += 1
-        safe_addstr(
-            window,
-            row,
-            left,
-            "  retention : {0} day(s)".format(log.get("retention_days", "-")),
+        self._set_card(
+            "card-logs",
+            "Logs",
+            [
+                ("dir", _basename(log.get("dir"))),
+                ("files", len(log.get("files") or [])),
+                ("size", format_bytes(log.get("total_bytes"))),
+                ("keep", "{0} day(s)".format(log.get("retention_days", "-"))),
+            ],
         )
-        row += 1
-        safe_addstr(
-            window,
-            row,
-            left,
-            "  size      : {0} in {1} file(s)".format(
-                format_bytes(log.get("total_bytes")), len(log.get("files") or [])
-            ),
-        )
-        row += 2
+        self._fill_clients(data.get("clients") or {})
+        self._fill_logs(self._recent_logs())
 
-        safe_addstr(window, row, left, "Clients", curses.A_BOLD)
-        row += 1
-        rows: List[List[str]] = []
+    def _set_card(self, card_id: str, title: str, rows) -> None:
+        self.query_one("#{0}".format(card_id), Static).update(
+            summary_card(title, rows, self._card_width(), self.colors)
+        )
+
+    def _card_width(self) -> int:
+        """The number of columns one card has for its text.
+
+        A card is a quarter of the grid, less its border, its padding and the
+        margin that keeps it away from the next one.
+        """
+        width = self.content_size.width or self.size.width
+        if not width:
+            return 40
+        return max(8, width // 4 - 5)
+
+    def _recent_logs(self) -> List[dict]:
+        data = self.controller.request("logs.tail", {"limit": RECENT_LOGS})
+        if data is None:
+            return []
+        return list(data.get("lines") or [])[:RECENT_LOGS]
+
+    def _fill_clients(self, clients: Dict[str, Any]) -> None:
+        table = self.query_one("#clients", DataTable)
+        table.clear()
+        names = self.device_names()
         for client in sorted(clients.keys()):
             entry = clients[client] or {}
-            rows.append(
-                [
-                    str(client),
-                    str(entry.get("total", 0)),
-                    str(entry.get("allowed", 0)),
-                    str(entry.get("blocked", 0)),
-                ]
+            table.add_row(
+                device_cell(names.get(str(client), ""), self.colors),
+                str(client),
+                str(entry.get("total", 0)),
+                str(entry.get("allowed", 0)),
+                str(entry.get("blocked", 0)),
             )
-        render_table(
-            window,
-            row,
-            left,
-            width,
-            ["client", "total", "allowed", "blocked"],
-            rows,
-            weights=[3, 1, 1, 1],
-            max_rows=max(1, top + height - row - 2),
-        )
+
+    def _fill_logs(self, records: List[dict]) -> None:
+        table = self.query_one("#recent-logs", DataTable)
+        table.clear()
+        names = self.device_names()
+        for record in records:
+            table.add_row(*log_row(record, names, self.colors))
+
+
+def _basename(path) -> str:
+    """The last part of a path, so a card does not spend a line on a folder."""
+    text = str(path or "-")
+    if "/" not in text:
+        return text
+    return text.rstrip("/").rsplit("/", 1)[-1] or text

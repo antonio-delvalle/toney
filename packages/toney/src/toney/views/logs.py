@@ -2,104 +2,87 @@
 
 from __future__ import annotations
 
-from toney.term import curses
 from typing import List, Optional
 
-from toney.views.base import View
-from toney.widgets import Rect, render_table, safe_addstr
+from textual.app import ComposeResult
+from textual.containers import Horizontal
+from textual.widgets import Button, DataTable, Input, Static
+
+from toney.views.base import LOG_COLUMNS, ToneyView, log_row
+
+COLUMNS = LOG_COLUMNS
 
 
-class LogsView(View):
+class LogsView(ToneyView):
     """Shows recent query log records with an optional filter."""
 
     name = "logs"
     title = "Logs"
 
-    def __init__(self, app) -> None:
-        super().__init__(app)
+    def __init__(self, **kwargs) -> None:
+        super().__init__(**kwargs)
         self.text_filter = ""
         self.client_filter = ""
         self.records: List[dict] = []
-        self.scroll = 0
 
-    def refresh(self) -> None:
+    def compose(self) -> ComposeResult:
+        with Horizontal(id="filters"):
+            yield Input(placeholder="substring filter", id="text-filter")
+            yield Input(placeholder="client filter", id="client-filter")
+            yield Button("Apply", id="apply", flat=True)
+        yield Static("", id="filter-summary", classes="section-title")
+        yield DataTable(id="records")
+
+    def on_mount(self) -> None:
+        table = self.query_one("#records", DataTable)
+        table.add_columns(*COLUMNS)
+        table.cursor_type = "row"
+
+    def search_input(self) -> Optional[Input]:
+        return self.query_one("#text-filter", Input)
+
+    def load_data(self) -> None:
+        if not self.is_mounted:
+            return
         params = {"limit": 500}
         if self.text_filter:
             params["filter"] = self.text_filter
         if self.client_filter:
             params["client"] = self.client_filter
-        data = self.app.request("logs.tail", params)
-        if data is not None:
-            self.data = data
-            self.records = list(data.get("lines") or [])
-            self.scroll = 0
-
-    def visible_records(self) -> List[dict]:
-        return self.records
-
-    def render(self, window, rect: Rect) -> None:
-        top, left, height, width = rect
-        filters = "filter: {0}".format(self.text_filter or "(none)")
-        if self.client_filter:
-            filters += "   client: {0}".format(self.client_filter)
-        safe_addstr(window, top, left, filters, curses.A_DIM)
-        row = top + 1
-        records = self.visible_records()
-        if not records:
-            safe_addstr(window, row, left, "No log records match the current filter.")
+        data = self.controller.request("logs.tail", params)
+        if data is None:
             return
-        rows = []
-        for record in records:
-            rows.append(
-                [
-                    str(record.get("ts", "")),
-                    str(record.get("client", "")),
-                    str(record.get("name", "")),
-                    str(record.get("type", "")),
-                    str(record.get("decision", "")),
-                    str(record.get("rule", "")),
-                ]
-            )
-        body_height = max(1, height - 2)
-        if self.scroll > max(0, len(rows) - body_height):
-            self.scroll = max(0, len(rows) - body_height)
-        window_rows = rows[self.scroll : self.scroll + body_height]
-        render_table(
-            window,
-            row,
-            left,
-            width,
-            ["timestamp", "client", "name", "type", "decision", "rule"],
-            window_rows,
-            weights=[2, 2, 3, 1, 1, 2],
-        )
+        self.data = data
+        self.records = list(data.get("lines") or [])
+        self._fill_records()
 
-    def handle_key(self, key: int) -> bool:
-        if key == ord("/"):
-            value = self.app.prompt("Substring filter: ", self.text_filter)
-            if value is not None:
-                self.text_filter = value.strip()
-                self.app.refresh_view(self)
-            return True
-        if key == ord("F"):
-            value = self.app.prompt("Client filter: ", self.client_filter)
-            if value is not None:
-                self.client_filter = value.strip()
-                self.app.refresh_view(self)
-            return True
-        if key == curses.KEY_DOWN:
-            self.scroll += 1
-            return True
-        if key == curses.KEY_UP:
-            self.scroll = max(0, self.scroll - 1)
-            return True
-        if key == curses.KEY_NPAGE:
-            self.scroll += 10
-            return True
-        if key == curses.KEY_PPAGE:
-            self.scroll = max(0, self.scroll - 10)
-            return True
-        if key == curses.KEY_HOME:
-            self.scroll = 0
+    def _fill_records(self) -> None:
+        table = self.query_one("#records", DataTable)
+        table.clear()
+        names = self.device_names()
+        for record in self.records:
+            table.add_row(*log_row(record, names, self.colors))
+        summary = "filter: {0}".format(self.text_filter or "(none)")
+        if self.client_filter:
+            summary += "    client: {0}".format(self.client_filter)
+        summary += "    {0} record(s)".format(len(self.records))
+        self.query_one("#filter-summary", Static).update(summary)
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        self._read_filters()
+        self.load_data()
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "apply":
+            self._read_filters()
+            self.load_data()
+
+    def _read_filters(self) -> None:
+        self.text_filter = self.query_one("#text-filter", Input).value.strip()
+        self.client_filter = self.query_one("#client-filter", Input).value.strip()
+
+    def handle_char(self, char: str) -> bool:
+        if char == "F":
+            self.query_one("#client-filter", Input).focus()
             return True
         return False

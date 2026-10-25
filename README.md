@@ -11,8 +11,9 @@ They are separate applications on purpose. The service runs on its own, with
 no user interface and no dependency on the TUI; the TUI is a client that
 talks to the service over a Unix socket and nothing else.
 
-No dependencies beyond the Python standard library. No accounts, no cloud, no
-telemetry of its own.
+The service needs nothing but the Python standard library. The interface is
+built with [Textual](https://textual.textualize.io), the only third-party
+package in the project. No accounts, no cloud, no telemetry of its own.
 
 ## Why
 
@@ -43,10 +44,9 @@ python3 -m venv ~/.venvs/toney
 ~/.venvs/toney/bin/python -m pip install -e packages/toney
 ```
 
-Python 3.10 or newer, and nothing else — no third-party packages. The virtual
-environment is not required, but it keeps the console scripts and the
-interpreter that can import them together, which matters once the TUI starts
-the service as a child process.
+Python 3.10 or newer. The virtual environment is not required, but it keeps the
+console scripts and the interpreter that can import them together, which
+matters once the TUI starts the service as a child process.
 
 ## Run
 
@@ -62,8 +62,7 @@ dnsguard serve \
 A device can only be told to use port 53 — DHCP hands out an address, and the
 port is implicit. So for real hardware, either run the service on `:53`
 directly, or put dnsmasq in front of it on 53 and let it forward to the
-service's high port. Details and the launch-agent setup are in
-[`doc/RUNNING.md`](doc/RUNNING.md).
+service's high port.
 
 Open the interface:
 
@@ -104,7 +103,7 @@ regular expression, so it is a second layer, never a replacement.
         +--------------------+
 ```
 
-The protocol is documented in [`doc/CONTROL_PROTOCOL.md`](doc/CONTROL_PROTOCOL.md).
+The protocol is one JSON object per line in each direction over that socket.
 
 ## Logs expire
 
@@ -117,11 +116,8 @@ window is configurable.
 
 | Document | What it covers |
 |---|---|
-| [`doc/ARCHITECTURE.md`](doc/ARCHITECTURE.md) | how the pieces fit, and why they are split this way |
-| [`doc/CONTROL_PROTOCOL.md`](doc/CONTROL_PROTOCOL.md) | the socket protocol between the two applications |
-| [`doc/RUNNING.md`](doc/RUNNING.md) | installing, configuring, running and verifying the two applications |
-| [`doc/DOC_REVIEW.md`](doc/DOC_REVIEW.md) | a review of this documentation, with the findings still open |
-| [`doc/investigation/`](doc/investigation/) | the measurements and reverse engineering Toney was built on |
+| [`packages/dnsguard/README.md`](packages/dnsguard/README.md) | the filtering service: configuration, rule matching, the query log, the control socket and router deployment |
+| [`packages/toney/README.md`](packages/toney/README.md) | the terminal UI: configuration, the views and their key bindings |
 | [`profiles/README.md`](profiles/README.md) | rule syntax and the bundled profiles |
 
 ## Licence
