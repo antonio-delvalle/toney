@@ -52,6 +52,14 @@ path to the service with `rules.set`, so the change survives a restart.
 is shown next to the address in the clients table and in the log tables. An
 address that is not in the map is shown on its own.
 
+The map is not the only way a name turns up. Pressing `d` — or starting,
+reloading or restarting the service — asks the service for the addresses in
+the query log and looks each one up in reverse, which is where the router's
+DHCP lease names come from. The names that are found are shown next to the
+addresses; the ones in the configuration win over them. They are not written
+to the file: a name that the lookup did not find is asked about again five
+minutes later, in case the router was only slow that once.
+
 ## Views and keys
 
 The views are the dashboard, the logs, the rules, the service screen and the
@@ -84,6 +92,7 @@ allowed or came from the cache, red for what was blocked.
 | `k` | in the rules view: keep a domain (a KEEP exception) |
 | `d` | in the rules view: delete the selected rule |
 | `d` | in the router view: deploy the rule set to the router |
+| `d` | on the other views: look up the names of the devices in the query log |
 | `b` | in the router view: roll back to the previous file on the router |
 | `ctrl+p` | open the command palette, where the theme can be changed |
 

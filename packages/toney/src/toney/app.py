@@ -104,7 +104,7 @@ class ToneyApp(App):
         Binding("/", "search", "Search"),
         Binding("a", "view_key('a')", "Block domain"),
         Binding("k", "view_key('k')", "Keep domain"),
-        Binding("d", "view_key('d')", "Delete rule"),
+        Binding("d", "view_key('d')", "Delete rule / device names"),
         Binding("b", "view_key('b')", "Roll back"),
     ]
 
@@ -128,6 +128,8 @@ class ToneyApp(App):
         )
         self.view_index = 0
         self._cleaned = False
+        self._sweeping = False
+        self._sweep_report = False
         self.main_screen: Optional[ToneyScreen] = None
         for theme in THEMES:
             self.register_theme(theme)
@@ -141,6 +143,12 @@ class ToneyApp(App):
     def on_mount(self) -> None:
         self.set_interval(REFRESH_SECONDS, self.refresh_view)
         self.call_after_refresh(self.refresh_view)
+        self.call_after_refresh(self._startup_sweep)
+
+    def _startup_sweep(self) -> None:
+        """Find the device names once, if the service is there to ask."""
+        if self.controller.reachable:
+            self._sweep_devices()
 
     def on_unmount(self) -> None:
         self._cleanup()
@@ -265,6 +273,7 @@ class ToneyApp(App):
     def action_start_service(self) -> None:
         self.controller.start_service()
         self.refresh_view()
+        self._sweep_devices()
 
     def action_stop_service(self) -> None:
         self.controller.stop_service()
@@ -273,10 +282,59 @@ class ToneyApp(App):
     def action_restart_service(self) -> None:
         self.controller.restart_service()
         self.refresh_view()
+        self._sweep_devices()
 
     def action_reload_rules(self) -> None:
         self.controller.reload_rules()
         self.refresh_view()
+        self._sweep_devices()
+
+    def action_sweep_devices(self) -> None:
+        """Look for the names of the devices behind the addresses in the log.
+
+        The lookups take their time, so they run in the background and the
+        screen is drawn again when they are done.
+        """
+        self._sweep_devices(report=True)
+
+    def _sweep_devices(self, report: bool = False) -> None:
+        """Sweep the log for the device names.
+
+        A sweep that was asked for says what it found; one that was part of
+        the service lifecycle says nothing, so it does not push the status
+        line around.
+        """
+        if self._sweeping:
+            if report:
+                self.controller.set_status("a sweep is already running")
+            return
+        self._sweeping = True
+        self._sweep_report = report
+        self.run_worker(self._sweep_worker, thread=True, group="devices")
+
+    def _sweep_worker(self) -> None:
+        try:
+            found = self.controller.sweep_devices()
+        except Exception:
+            found = {}
+        self.call_from_thread(self._sweep_done, found)
+
+    def _sweep_done(self, found: Dict[str, str]) -> None:
+        self._sweeping = False
+        self.refresh_view()
+        if not self._sweep_report:
+            return
+        known = len(self.controller.device_names())
+        if found:
+            self.controller.set_status(
+                "found {0} device name(s)".format(len(found))
+            )
+        elif known:
+            self.controller.set_status(
+                "the names of {0} device(s) are known".format(known)
+            )
+        else:
+            self.controller.set_status("no device names found in the log")
 
     def action_help(self) -> None:
         self.push_screen(HelpScreen())
@@ -308,6 +366,9 @@ class ToneyApp(App):
             return
         if view.handle_char(char):
             self.refresh_view(view)
+            return
+        if char == "d":
+            self.action_sweep_devices()
 
 
 def run_app(config: Dict[str, Any]) -> int:

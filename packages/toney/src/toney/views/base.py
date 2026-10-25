@@ -148,15 +148,12 @@ class ToneyView(Vertical):
         return palette(self.app.theme)
 
     def device_names(self) -> Dict[str, str]:
-        """The address to device name mapping from the configuration."""
-        configured = self.app.config.get("clients") or {}
-        if not isinstance(configured, dict):
-            return {}
-        return {
-            str(address): str(name)
-            for address, name in configured.items()
-            if str(address).strip() and str(name).strip()
-        }
+        """The address to device name mapping.
+
+        The names that were found in the log, with the ones written in the
+        configuration on top of them.
+        """
+        return self.controller.device_names()
 
     def load_data(self) -> None:
         """Reload whatever the view shows from the service."""

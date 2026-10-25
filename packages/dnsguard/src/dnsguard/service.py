@@ -211,6 +211,10 @@ class Service:
     def tail_logs(self, limit=100, needle=None, client=None):
         return self.log.tail(limit=limit, needle=needle, client=client)
 
+    def log_clients(self, limit=500):
+        """The addresses seen in the query log, the most recent ones first."""
+        return self.log.clients(limit=limit)
+
     def config_dict(self):
         return self.config.to_dict()
 
@@ -287,6 +291,10 @@ class Service:
             return {"lines": self.tail_logs(limit=limit,
                                             needle=params.get("filter"),
                                             client=params.get("client"))}
+        if cmd == "logs.clients":
+            limit = int(params.get("limit", 500))
+            limit = max(1, min(limit, 5000))
+            return {"clients": self.log_clients(limit=limit)}
         if cmd == "config.get":
             return self.config_dict()
         if cmd == "config.set":

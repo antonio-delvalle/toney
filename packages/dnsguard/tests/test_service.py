@@ -127,6 +127,26 @@ class DispatchTests(unittest.TestCase):
         self.assertEqual(data["count"], 1)
         self.assertEqual(data["rules"][0]["action"], "block")
 
+    def test_logs_clients_lists_the_addresses_in_the_log(self):
+        self.service.log.write(self._record(client="192.0.2.10"))
+        self.service.log.write(self._record(client="192.0.2.11"))
+        data = self.service.dispatch("logs.clients", {})
+        self.assertEqual(data["clients"], ["192.0.2.11", "192.0.2.10"])
+
+    def test_logs_clients_of_an_empty_log(self):
+        data = self.service.dispatch("logs.clients", {})
+        self.assertEqual(data["clients"], [])
+
+    def _record(self, client="192.0.2.10"):
+        return {
+            "ts": "2026-01-02T03:04:05Z",
+            "client": client,
+            "name": "ads.example.net.",
+            "type": "A",
+            "decision": "block",
+            "rule": "||ads.example.net^",
+        }
+
     def test_rules_reload(self):
         data = self.service.dispatch("rules.reload", {})
         self.assertEqual(data["count"], 1)

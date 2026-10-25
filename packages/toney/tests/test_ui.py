@@ -8,6 +8,7 @@ import unittest
 import support
 from toney.client import ServiceUnreachable
 from toney.controller import ToneyController
+from toney.devices import DeviceResolver
 from toney.theme import COLORS, TOKYO_NIGHT, TONEY_LIGHT
 from toney.views.base import (
     client_cell,
@@ -197,6 +198,68 @@ class CellTest(unittest.TestCase):
 
     def test_a_cached_decision_is_green(self):
         self.assertEqual(decision_cell("cache").style, COLORS["ok"])
+
+
+class DeviceSweepTest(support.AppTestCase):
+    """The sweep finds the names of the devices behind the addresses."""
+
+    responses = {
+        "status": {"name": "dnsguard", "clients": {"192.0.2.10": {"total": 3}}},
+        "logs.clients": {"clients": ["192.0.2.10"]},
+    }
+
+    async def asyncSetUp(self):
+        await super().asyncSetUp()
+        self.app.controller.devices.lookup = lambda address: "living-room-tv"
+
+    def _sweeps(self):
+        return len([c for c, _p in self.client.requests if c == "logs.clients"])
+
+    async def _wait_for_names(self):
+        for _ in range(100):
+            await self.pilot.pause(0.02)
+            if self.app.controller.device_names():
+                return
+        self.fail("the sweep did not find any name")
+
+    async def test_the_d_key_sweeps_the_log(self):
+        before = self._sweeps()
+        await self.pilot.press("d")
+        await self._wait_for_names()
+        self.assertGreater(self._sweeps(), before)
+
+    async def test_the_sweep_finds_the_names(self):
+        self.app.controller.devices = DeviceResolver(
+            lookup=lambda address: "living-room-tv"
+        )
+        await self.pilot.press("d")
+        await self._wait_for_names()
+        self.assertEqual(
+            self.app.controller.device_names(), {"192.0.2.10": "living-room-tv"}
+        )
+
+    async def test_the_names_show_in_the_dashboard(self):
+        await self.pilot.press("d")
+        await self._wait_for_names()
+        await self.pilot.pause()
+        table = self.app.screen.query_one("#clients")
+        self.assertEqual(str(table.get_row_at(0)[0]), "living-room-tv")
+
+    async def test_the_configuration_wins_over_the_lookup(self):
+        self.app.controller.config["clients"] = {"192.0.2.10": "the-tv"}
+        await self.pilot.press("d")
+        await self._wait_for_names()
+        self.assertEqual(
+            self.app.controller.device_names(), {"192.0.2.10": "the-tv"}
+        )
+
+    async def test_the_rules_view_keeps_the_d_key(self):
+        await self.pilot.press("3")
+        await self.pilot.pause()
+        before = self._sweeps()
+        await self.pilot.press("d")
+        await self.pilot.pause()
+        self.assertEqual(self._sweeps(), before)
 
 
 class ThemeAppTest(support.AppTestCase):

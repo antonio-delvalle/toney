@@ -16,6 +16,8 @@ import time
 SUFFIX = ".jsonl"
 ROLLED_SUFFIX = ".jsonl.1.gz"
 
+CHUNK_BYTES = 256 * 1024
+
 
 class QueryLog:
     """Append-only query log."""
@@ -199,6 +201,52 @@ class QueryLog:
                 if len(records) >= limit:
                     return records
         return records
+
+    def clients(self, limit=500):
+        """The addresses seen in the log files, the most recent ones first.
+
+        Only the end of each file is read: the addresses of the devices that
+        are on the network now are the ones near the end, and a file can be
+        far larger than a sweep needs to walk.
+        """
+        found = []
+        seen = set()
+        try:
+            names = sorted(
+                (n for n in os.listdir(self.directory) if n.endswith(SUFFIX)),
+                reverse=True)
+        except OSError:
+            return found
+        for name in names:
+            path = os.path.join(self.directory, name)
+            for line in reversed(self._tail_lines(path)):
+                try:
+                    record = json.loads(line)
+                except ValueError:
+                    continue
+                address = str(record.get("client", "") or "")
+                if not address or address in seen:
+                    continue
+                seen.add(address)
+                found.append(address)
+                if len(found) >= limit:
+                    return found
+        return found
+
+    def _tail_lines(self, path):
+        """The last lines of a file, without the one that may be cut in half."""
+        try:
+            with open(path, "rb") as handle:
+                handle.seek(0, os.SEEK_END)
+                size = handle.tell()
+                handle.seek(max(0, size - CHUNK_BYTES))
+                chunk = handle.read()
+        except OSError:
+            return []
+        lines = chunk.decode("utf-8", errors="replace").splitlines()
+        if size > CHUNK_BYTES and lines:
+            lines = lines[1:]
+        return lines
 
     def close(self):
         with self.lock:

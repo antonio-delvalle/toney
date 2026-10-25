@@ -1,16 +1,18 @@
 """Everything the interface needs that is not a pixel.
 
-The controller owns the control socket client, the service supervisor and
-the status message.  It contains no terminal code at all, so the Textual
-interface and the test suite can both drive it.
+The controller owns the control socket client, the service supervisor, the
+device names and the status message.  It contains no terminal code at all,
+so the Textual interface and the test suite can both drive it.
 """
 
 from __future__ import annotations
 
 import os
-from typing import Any, Callable, Dict, Optional
+import time
+from typing import Any, Callable, Dict, List, Optional
 
 from toney.client import ControlClient, ToneyError
+from toney.devices import DeviceResolver
 from toney.supervisor import ServiceSupervisor
 
 
@@ -33,6 +35,7 @@ class ToneyController:
         self.status_kind = "info"
         self.reachable = False
         self._client: Optional[ControlClient] = None
+        self.devices = DeviceResolver()
 
     def client(self) -> ControlClient:
         if self._client is None:
@@ -47,17 +50,63 @@ class ToneyController:
                 pass
             self._client = None
 
-    def request(self, cmd: str, params: Optional[Dict[str, Any]] = None) -> Any:
-        """Send a protocol request and turn failures into a status message."""
+    def request(
+        self, cmd: str, params: Optional[Dict[str, Any]] = None, quiet: bool = False
+    ) -> Any:
+        """Send a protocol request and turn failures into a status message.
+
+        A quiet request leaves the status line alone, which is what the
+        device sweep wants while it waits for the service to come up.
+        """
         try:
             data = self.client().request(cmd, params or {})
         except ToneyError as exc:
             self.reachable = False
             self.reset_client()
-            self.set_status("{0}".format(exc), "error")
+            if not quiet:
+                self.set_status("{0}".format(exc), "error")
             return None
         self.reachable = True
         return data
+
+    def device_names(self) -> Dict[str, str]:
+        """The address to device name mapping.
+
+        The names that were found in the log, with the ones written in the
+        configuration on top of them.
+        """
+        names = dict(self.devices.names())
+        configured = self.config.get("clients") or {}
+        if isinstance(configured, dict):
+            names.update(
+                {
+                    str(address): str(name)
+                    for address, name in configured.items()
+                    if str(address).strip() and str(name).strip()
+                }
+            )
+        return names
+
+    def log_clients(self, attempts: int = 5, delay: float = 1.0) -> Optional[List[str]]:
+        """The addresses in the query log.
+
+        The service may still be coming up after a start or a restart, so
+        the question is asked again a few times before giving up.
+        """
+        for attempt in range(attempts):
+            data = self.request("logs.clients", quiet=True)
+            if data is not None:
+                return [str(address) for address in (data.get("clients") or [])]
+            if attempt + 1 < attempts:
+                time.sleep(delay)
+        return None
+
+    def sweep_devices(self) -> Dict[str, str]:
+        """Look up the names of the devices behind the addresses in the log."""
+        addresses = self.log_clients()
+        if not addresses:
+            return {}
+        return self.devices.resolve(addresses)
 
     def set_status(self, message: str, kind: str = "info") -> None:
         self.status_message = message

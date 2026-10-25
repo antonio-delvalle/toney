@@ -77,6 +77,34 @@ class QueryLogTests(unittest.TestCase):
         self.assertGreater(log.total_bytes(), 0)
         log.close()
 
+    def test_clients_lists_the_addresses_in_the_log(self):
+        log = QueryLog(self.directory, retention_days=5)
+        log.write(self._record(client="192.0.2.10"))
+        log.write(self._record(client="192.0.2.11"))
+        log.write(self._record(client="192.0.2.10"))
+        self.assertEqual(log.clients(), ["192.0.2.10", "192.0.2.11"])
+        log.close()
+
+    def test_clients_puts_the_most_recent_address_first(self):
+        log = QueryLog(self.directory, retention_days=5)
+        log.write(self._record(client="192.0.2.10"))
+        log.write(self._record(client="192.0.2.11"))
+        self.assertEqual(log.clients(), ["192.0.2.11", "192.0.2.10"])
+        log.close()
+
+    def test_clients_stops_at_the_limit(self):
+        log = QueryLog(self.directory, retention_days=5)
+        log.write(self._record(client="192.0.2.10"))
+        log.write(self._record(client="192.0.2.11"))
+        log.write(self._record(client="192.0.2.12"))
+        self.assertEqual(len(log.clients(limit=2)), 2)
+        log.close()
+
+    def test_clients_of_an_empty_log(self):
+        log = QueryLog(self.directory, retention_days=5)
+        self.assertEqual(log.clients(), [])
+        log.close()
+
 
 if __name__ == "__main__":
     unittest.main()

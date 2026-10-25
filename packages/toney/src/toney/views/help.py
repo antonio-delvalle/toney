@@ -25,6 +25,7 @@ HELP_LINES = [
     ("F", "filter the logs by client address"),
     ("a k d", "in the rules view: block a domain, keep a domain, delete the selected rule"),
     ("d b", "in the router view: deploy the rule set, roll back to the previous file"),
+    ("d", "on the other views: look up the names of the devices in the query log"),
     ("ctrl+p", "open the command palette, where the theme can be changed"),
 ]
 
