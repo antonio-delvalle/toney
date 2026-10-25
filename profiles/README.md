@@ -28,6 +28,7 @@ name and will never match. Use a regular expression instead.
 | `samsung-tv-telemetry.blocklist` | Samsung Tizen TVs: viewing-history fingerprinting, advertising, device logs. 70 block rules, 33 KEEP rules. |
 | `samsung-tv-account-voice.blocklist` | Opt-in. Account sign-in and voice backend. Breaks sign-in and voice control by design. |
 | `streaming-telemetry.blocklist` | Device-agnostic streaming and smart-TV telemetry: Netflix device events, Amazon device telemetry, crash reporting, smart-home cloud. |
+| `youtube-ads.blocklist` | YouTube advertising and ad-measurement hosts. 17 block rules, 5 KEEP rules. Stops the ad host traffic, not the ad slots inside the player. |
 
 ## Using a profile
 

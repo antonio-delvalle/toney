@@ -1,0 +1,65 @@
+! ===========================================================================
+! youtube-ads.blocklist
+! YouTube advertising and ad-measurement hosts.
+!
+! Device-agnostic: covers the Google ad stack that YouTube uses, on any
+! client that runs YouTube (Tizen TV app, browser, phone, tablet).
+!
+! Format: Adblock-Plus style, one rule per line.
+!   ||domain^      block the domain and every subdomain
+!   @@||domain^    never block (KEEP) - these win over block rules
+!   /^regex$/      block when the regular expression matches
+!
+! WHAT THIS DOES AND DOES NOT DO
+! A DNS filter sees hostnames only. It can stop the ad host from being
+! reached, so the ad request fails and the player moves on. It cannot see the
+! ad slots inside the player response, so it cannot remove a pre-roll that
+! YouTube decides to serve from its own servers. Expect less ad telemetry
+! and fewer ad requests - not necessarily an ad-free screen.
+!
+! DESIGN RULE: playback first. Every host that carries video, images or the
+! app itself is pinned with an explicit KEEP rule, and those KEEP rules win
+! over every block rule below. If a block rule ever starts to look like it
+! could touch playback, the KEEP rule is the one that has to give.
+!
+! KNOWN SIDE EFFECTS
+!   googleads.g.doubleclick.net  also serves Google Play Store video and
+!                                Google Ads campaign traffic. Blocking it
+!                                can break Play Store video previews on a
+!                                device that uses Google Play.
+!   doubleclick.net              also used by Google Ads and AdSense
+!                                properties. Harmless on a TV.
+! ===========================================================================
+
+! --- Measured: seen in the dnsguard query log, YouTube session on the TV ---
+! --- (192.0.2.64, native Tizen YouTube app) ------------------------------
+||doubleclick.net^
+||googlesyndication.com^
+
+! --- Same Google ad path, not yet observed in the log ---------------------
+! --- Ad exchange, ad serving, Google tag/ad services ---------------------
+||2mdn.net^
+||doubleclick.com^
+||googletagservices.com^
+||googleadservices.com^
+||googleads.com^
+||adservice.google^
+
+! --- Ad verification and viewability measurement -------------------------
+! --- These are the vendors a smart TV leans on for TV ad measurement -----
+||moatads.com^
+||innovid.com^
+||fwmrm.net^
+||adform.net^
+||adsafeprotected.com^
+||fastclick.net^
+||tubemogul.com^
+||cc-dt.com^
+||flashtalking.com^
+
+! --- KEEP: playback, images and the app itself must survive filtering ----
+@@||googlevideo.com^
+@@||youtube.com^
+@@||ytimg.com^
+@@||ggpht.com^
+@@||gstatic.com^
