@@ -11,8 +11,9 @@ They are separate applications on purpose. The service runs on its own, with
 no user interface and no dependency on the TUI; the TUI is a client that
 talks to the service over a Unix socket and nothing else.
 
-No dependencies beyond the Python standard library. No accounts, no cloud, no
-telemetry of its own.
+The service needs nothing but the Python standard library. The interface is
+built with [Textual](https://textual.textualize.io), the only third-party
+package in the project. No accounts, no cloud, no telemetry of its own.
 
 ## Why
 
@@ -43,10 +44,9 @@ python3 -m venv ~/.venvs/toney
 ~/.venvs/toney/bin/python -m pip install -e packages/toney
 ```
 
-Python 3.10 or newer, and nothing else — no third-party packages. The virtual
-environment is not required, but it keeps the console scripts and the
-interpreter that can import them together, which matters once the TUI starts
-the service as a child process.
+Python 3.10 or newer. The virtual environment is not required, but it keeps the
+console scripts and the interpreter that can import them together, which
+matters once the TUI starts the service as a child process.
 
 ## Run
 

@@ -9,7 +9,7 @@ description = "Terminal UI that manages the dnsguard DNS filtering service"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
-keywords = ["dns", "terminal", "tui", "curses", "filtering"]
+keywords = ["dns", "terminal", "tui", "textual", "filtering"]
 classifiers = [
     "Environment :: Console :: Curses",
     "Intended Audience :: System Administrators",
@@ -17,7 +17,7 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Topic :: System :: Networking",
 ]
-dependencies = []
+dependencies = ["textual==8.2.8"]
 
 [project.scripts]
 toney = "toney.cli:main"
@@ -27,3 +27,6 @@ package-dir = { "" = "src" }
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+toney = ["*.tcss"]

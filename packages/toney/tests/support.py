@@ -4,7 +4,9 @@ import json
 import os
 import socket
 import sys
+import tempfile
 import threading
+import unittest
 
 SRC = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src")
 if SRC not in sys.path:
@@ -16,6 +18,25 @@ class Error:
 
     def __init__(self, message):
         self.message = message
+
+
+class FakeClient:
+    """A client that answers from a dictionary instead of a socket."""
+
+    def __init__(self, responses=None):
+        self.responses = dict(responses or {})
+        self.requests = []
+        self.closed = False
+
+    def request(self, cmd, params=None):
+        self.requests.append((cmd, params))
+        value = self.responses.get(cmd)
+        if isinstance(value, Exception):
+            raise value
+        return value if value is not None else {}
+
+    def close(self):
+        self.closed = True
 
 
 class FakeServer:
@@ -110,3 +131,36 @@ def refused_socket(path):
     sock.bind(path)
     sock.close()
     return path
+
+
+class AppTestCase(unittest.IsolatedAsyncioTestCase):
+    """Base class for the tests that drive the interface headlessly.
+
+    The application is started with the Textual test driver, so the widgets
+    are really mounted and the key presses really travel through the
+    binding chain.
+    """
+
+    responses = {}
+    extra_config = {}
+
+    async def asyncSetUp(self):
+        from toney.app import ToneyApp
+
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.config = {
+            "control_socket": os.path.join(self.tmp.name, "dnsguard.sock"),
+            "service": {
+                "command": ["python3", "-m", "dnsguard", "serve"],
+                "cwd": None,
+                "env": {},
+            },
+            "config_path": "/etc/toney/dnsguard.json",
+        }
+        self.config.update(self.extra_config)
+        self.client = FakeClient(dict(self.responses))
+        self.app = ToneyApp(self.config, client_factory=lambda: self.client)
+        context = self.app.run_test()
+        self.pilot = await context.__aenter__()
+        self.addAsyncCleanup(context.__aexit__, None, None, None)

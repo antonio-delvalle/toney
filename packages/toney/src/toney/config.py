@@ -26,6 +26,7 @@ DEFAULTS: Dict[str, Any] = {
     },
     "config_path": DEFAULT_SERVICE_CONFIG_PATH,
     "stop_on_exit": True,
+    "clients": {},
 }
 
 
@@ -85,7 +86,21 @@ def normalise(config: Dict[str, Any]) -> Dict[str, Any]:
         "manager": manager,
     }
     result["stop_on_exit"] = bool(result.get("stop_on_exit", True))
+    result["clients"] = _clients(result.get("clients"))
     return result
+
+
+def _clients(value: Any) -> Dict[str, str]:
+    """Read the address to device name mapping, dropping what makes no sense."""
+    if not isinstance(value, dict):
+        return {}
+    names = {}
+    for address, name in value.items():
+        address = str(address).strip()
+        name = str(name).strip()
+        if address and name:
+            names[address] = name
+    return names
 
 
 def load_config(path: Optional[str] = None) -> Dict[str, Any]:

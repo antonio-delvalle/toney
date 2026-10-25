@@ -1,0 +1,255 @@
+/* The stylesheet of the Toney interface.
+ *
+ * The colours come from the theme in toney/theme.py: the standard Textual
+ * variables for the structure and a handful of toney-* variables for the
+ * meaning (keep, block, ok, dim).
+ */
+
+Screen {
+    background: $background;
+    color: $foreground;
+}
+
+ToneyScreen {
+    layout: vertical;
+}
+
+#header {
+    height: 1;
+    background: $panel;
+    color: $foreground;
+}
+
+#title {
+    width: auto;
+    height: 1;
+    padding: 0 1;
+    color: $accent;
+    text-style: bold;
+}
+
+#tabs {
+    width: 1fr;
+    height: 1;
+}
+
+Button.tab {
+    width: auto;
+    min-width: 0;
+    height: 1;
+    padding: 0 1;
+    margin: 0;
+    border: none;
+    background: $panel;
+    color: $text-muted;
+
+    &:hover {
+        color: $foreground;
+    }
+
+    &.-active {
+        color: $accent;
+        text-style: bold;
+    }
+}
+
+#service-state {
+    width: auto;
+    height: 1;
+    padding: 0 1;
+    color: $toney-ok;
+
+    &.-not-running {
+        color: $toney-warn;
+    }
+}
+
+#views {
+    height: 1fr;
+}
+
+ToneyView {
+    height: 1fr;
+    padding: 0 1;
+}
+
+.section-title {
+    height: 1;
+    padding: 0 0 0 1;
+    color: $toney-dim;
+}
+
+#cards {
+    layout: grid;
+    grid-size: 4;
+    grid-columns: 1fr 1fr 1fr 1fr;
+    grid-rows: auto;
+    height: auto;
+    margin-bottom: 1;
+}
+
+.card {
+    height: auto;
+    min-height: 7;
+    margin: 0 1 1 0;
+    padding: 0 1;
+    border: tall $toney-border;
+    background: $surface;
+    color: $toney-value;
+}
+
+#clients {
+    height: 5;
+    margin-bottom: 1;
+}
+
+#recent-logs {
+    height: 1fr;
+}
+
+#filters {
+    height: 3;
+    margin-bottom: 1;
+}
+
+#filters Input {
+    width: 1fr;
+    height: 3;
+    border: tall $toney-border;
+    background: $surface;
+}
+
+#filters Button {
+    width: auto;
+    min-width: 10;
+    height: 3;
+    margin: 0 0 0 1;
+    border: tall $toney-border;
+    background: $panel;
+}
+
+#actions {
+    height: 3;
+    margin-bottom: 1;
+}
+
+#actions Button {
+    width: auto;
+    min-width: 12;
+    height: 3;
+    margin: 0 1 0 0;
+    border: tall $toney-border;
+    background: $panel;
+}
+
+#service-detail, #router-detail {
+    height: auto;
+    padding: 0 1;
+    border: tall $toney-border;
+    background: $surface;
+}
+
+DataTable {
+    height: 1fr;
+    background: $background;
+    scrollbar-color: $primary 40%;
+    scrollbar-color-hover: $primary 70%;
+    scrollbar-color-active: $primary;
+    scrollbar-background: $surface-darken-1;
+
+    & > .datatable--header {
+        background: $panel;
+        color: $text;
+        text-style: bold;
+    }
+
+    & > .datatable--odd-row {
+        background: $surface;
+    }
+
+    & > .datatable--even-row {
+        background: $background;
+    }
+
+    & > .datatable--cursor {
+        background: $primary 35%;
+        color: $foreground;
+        text-style: bold;
+    }
+}
+
+#status-bar {
+    height: 2;
+    background: $panel;
+}
+
+#status-message {
+    height: 1;
+    padding: 0 1;
+    color: $foreground;
+
+    &.-error {
+        color: $error;
+        text-style: bold;
+    }
+}
+
+#status-hint {
+    height: 1;
+    padding: 0 1;
+    color: $toney-dim;
+}
+
+ModalScreen {
+    align: center middle;
+}
+
+#prompt-box, #help-box, #config-box {
+    width: 64;
+    height: auto;
+    padding: 1 2;
+    border: tall $toney-border;
+    background: $surface;
+}
+
+.prompt-label {
+    height: 1;
+    color: $accent;
+    text-style: bold;
+}
+
+#prompt-input {
+    width: 1fr;
+    height: 3;
+    margin-bottom: 1;
+    border: tall $toney-border;
+}
+
+#prompt-actions, #config-actions {
+    height: 3;
+    align-horizontal: right;
+}
+
+#prompt-actions Button, #config-actions Button {
+    width: auto;
+    min-width: 10;
+    height: 3;
+    margin-left: 2;
+    border: tall $toney-border;
+}
+
+.field-hint {
+    height: 1;
+    color: $toney-dim;
+}
+
+#config-fields Input {
+    width: 1fr;
+    height: 3;
+    margin-bottom: 1;
+    border: tall $toney-border;
+}
+
+#help-box Static {
+    height: auto;
+}

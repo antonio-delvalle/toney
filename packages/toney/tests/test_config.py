@@ -72,6 +72,28 @@ class ConfigTest(unittest.TestCase):
         save_config(load_config(target), target)
         self.assertTrue(os.path.isfile(target))
 
+    def test_the_client_names_are_read(self):
+        with open(self.path, "w", encoding="utf-8") as handle:
+            json.dump({"clients": {"192.0.2.10": "living-room-tv"}}, handle)
+        config = load_config(self.path)
+        self.assertEqual(config["clients"], {"192.0.2.10": "living-room-tv"})
+
+    def test_the_client_names_are_empty_by_default(self):
+        config = load_config(self.path)
+        self.assertEqual(config["clients"], {})
+
+    def test_broken_client_names_are_dropped(self):
+        with open(self.path, "w", encoding="utf-8") as handle:
+            json.dump({"clients": {"192.0.2.10": "", "": "tv", "192.0.2.11": 7}}, handle)
+        config = load_config(self.path)
+        self.assertEqual(config["clients"], {"192.0.2.11": "7"})
+
+    def test_client_names_that_are_not_a_mapping_are_ignored(self):
+        with open(self.path, "w", encoding="utf-8") as handle:
+            json.dump({"clients": ["192.0.2.10"]}, handle)
+        config = load_config(self.path)
+        self.assertEqual(config["clients"], {})
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -4,30 +4,43 @@ from __future__ import annotations
 
 from typing import Any, Dict, List
 
-from toney.term import curses
-from toney.views.base import View
-from toney.widgets import Rect, safe_addstr
+from textual.app import ComposeResult
+from textual.containers import Horizontal
+from textual.widgets import Button, Static
+
+from toney.views.base import ToneyView, pairs_block
 
 
-class RouterView(View):
+class RouterView(ToneyView):
     """Shows the state of the generated rule file on the router."""
 
     name = "router"
     title = "Router"
 
-    def __init__(self, app) -> None:
-        super().__init__(app)
+    def __init__(self, **kwargs) -> None:
+        super().__init__(**kwargs)
         self.state: Dict[str, Any] = {}
         self.history: List[str] = []
 
-    def refresh(self) -> None:
-        data = self.app.request("router.status")
-        if data is not None:
-            self.data = data
-            self.state = dict(data)
+    def compose(self) -> ComposeResult:
+        with Horizontal(id="actions"):
+            yield Button("Deploy", id="deploy", flat=True)
+            yield Button("Roll back", id="rollback", flat=True)
+        yield Static("", id="router-detail")
+        yield Static("", id="router-history", classes="section-title")
+
+    def load_data(self) -> None:
+        if not self.is_mounted:
+            return
+        data = self.controller.request("router.status")
+        if data is None:
+            return
+        self.data = data
+        self.state = dict(data)
+        self._fill()
 
     def deploy(self) -> None:
-        data = self.app.request("router.deploy")
+        data = self.controller.request("router.deploy")
         if data is None:
             return
         self.history.insert(
@@ -36,11 +49,11 @@ class RouterView(View):
                 data.get("rules", 0), data.get("skipped", 0), data.get("bytes", 0)
             ),
         )
-        self.app.set_status("rule set deployed to the router")
-        self.refresh()
+        self.controller.set_status("rule set deployed to the router")
+        self.load_data()
 
     def rollback(self) -> None:
-        data = self.app.request("router.rollback")
+        data = self.controller.request("router.rollback")
         if data is None:
             return
         if data.get("removed"):
@@ -48,52 +61,43 @@ class RouterView(View):
         else:
             message = "the previous file was restored"
         self.history.insert(0, message)
-        self.app.set_status(message)
-        self.refresh()
+        self.controller.set_status(message)
+        self.load_data()
 
-    def render(self, window, rect: Rect) -> None:
-        top, left, height, width = rect
+    def _fill(self) -> None:
         state = self.state
         if not state.get("configured"):
-            safe_addstr(window, top, left, "No router is configured.")
-            safe_addstr(
-                window,
-                top + 1,
-                left,
-                "Add a \"router\" section to the dnsguard configuration to use this view.",
-                curses.A_DIM,
+            self.query_one("#router-detail", Static).update(
+                "No router is configured.\n"
+                'Add a "router" section to the dnsguard configuration to use this view.'
             )
+            self.query_one("#router-history", Static).update("")
             return
-        rows = [
-            ("router host", state.get("host")),
-            ("remote file", state.get("remote_path")),
-            ("installed", "yes" if state.get("installed") else "no"),
-            ("matches the loaded rules", "yes" if state.get("matches") else "no"),
-            ("remote size", "{0} byte(s)".format(state.get("bytes", 0))),
-        ]
-        row = top
-        for label, value in rows:
-            safe_addstr(window, row, left, label.ljust(26), curses.A_BOLD)
-            safe_addstr(window, row, left + 26, str(value))
-            row += 1
-        row += 1
-        safe_addstr(
-            window,
-            row,
-            left,
-            "[d] deploy the rule set    [b] roll back to the previous file",
-            curses.A_DIM,
+        self.query_one("#router-detail", Static).update(
+            pairs_block(
+                [
+                    ("router host", state.get("host")),
+                    ("remote file", state.get("remote_path")),
+                    ("installed", "yes" if state.get("installed") else "no"),
+                    ("matches the rules", "yes" if state.get("matches") else "no"),
+                    ("remote size", "{0} byte(s)".format(state.get("bytes", 0))),
+                ],
+                self.colors,
+            )
         )
-        row += 2
-        for entry in self.history[: max(0, top + height - row - 1)]:
-            safe_addstr(window, row, left, entry)
-            row += 1
+        self.query_one("#router-history", Static).update("\n".join(self.history))
 
-    def handle_key(self, key: int) -> bool:
-        if key == ord("d"):
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "deploy":
+            self.deploy()
+        elif event.button.id == "rollback":
+            self.rollback()
+
+    def handle_char(self, char: str) -> bool:
+        if char == "d":
             self.deploy()
             return True
-        if key == ord("b"):
+        if char == "b":
             self.rollback()
             return True
         return False
