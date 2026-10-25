@@ -12,3 +12,6 @@ htmlcov/
 .DS_Store
 *.log
 logs/
+
+# Internal documentation: kept on the machine, not published.
+doc/

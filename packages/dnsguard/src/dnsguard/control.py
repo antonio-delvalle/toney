@@ -1,8 +1,7 @@
 """The control socket.
 
 The TUI talks to the service through this Unix socket, and nothing else. One
-JSON object per line in each direction, exactly as described in
-``doc/CONTROL_PROTOCOL.md``.
+JSON object per line in each direction.
 """
 
 import json
